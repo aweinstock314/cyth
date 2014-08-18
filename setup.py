@@ -30,6 +30,7 @@ if __name__ == '__main__':
         author_email='aweinstock314@gmail.com',
         keywords='',
         install_requires=INSTALL_REQUIRES,
+        scripts=['cyth/cyth_script.py', ],
         package_data={},
         classifiers=[],
     )
