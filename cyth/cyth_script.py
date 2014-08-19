@@ -232,11 +232,11 @@ class CythVisitor(BASE_CLASS):
         def handle_else(matcher):
             #print('handle_else: %r' % (cyth_mode_ptr[0],))
             #cyth_mode_ptr[0] = not cyth_mode_ptr[0]
-            pass # deliberate no-op
+            pass  # deliberate no-op
 
         def handle_endif(matcher):
             #print('handle_endif')
-            cyth_mode_ptr[0] = False # pop the top item in the stack for nested ifs
+            cyth_mode_ptr[0] = False  # pop the top item in the stack for nested ifs
 
         def handle_returns_decl(matcher):
             return_type_ptr[0] = matcher.group(1)
@@ -250,7 +250,7 @@ class CythVisitor(BASE_CLASS):
         ]]
 
         def handle_param_types(matcher, lines):
-            # the indent/unindent pair is not a no-op: unindent goes all the way, 
+            # the indent/unindent pair is not a no-op: unindent goes all the way,
             # indent just does one step
             #print(lines)
             #cythdef = '\n'.join(['cdef:\n'].append(utool.indent(utool.unindent('\n'.join(lines))).split('\n')))
@@ -269,7 +269,7 @@ class CythVisitor(BASE_CLASS):
 
         multiline_directives = [((a + ":"), b) for (a, b) in [
             ('#CYTH_PARAM_TYPES', handle_param_types),
-            #('cdef', handle_cdef)
+            ('cdef', handle_cdef)
         ]]
 
         regex_compile_car = lambda (a, b): (re.compile(a), b)
@@ -292,7 +292,7 @@ class CythVisitor(BASE_CLASS):
             if cyth_mode_ptr[0]:
                 if line.strip().startswith('cdef'):
                     bodyvars_typedict.update(parse_cdef_line(line))
-                source_lines.append('\n'+line)
+                source_lines.append('\n' + line)
                 return None
 
         multiline_buffer = []
@@ -471,7 +471,7 @@ class CythVisitor(BASE_CLASS):
         #super(CythVisitor, self).visit_FunctionDef(node)
         new_body = []
         #actiontup = None
-        cyth_mode = False # used for #if/else/endif
+        cyth_mode = False  # used for #if/else/endif
         param_typedict = {}
         bodyvars_typedict = {}
         return_type = None
@@ -502,7 +502,7 @@ class CythVisitor(BASE_CLASS):
             union_typedict = {}
             union_typedict.update(param_typedict)
             union_typedict.update(bodyvars_typedict)
-            if return_type == None:
+            if return_type is None:
                 return_type = infer_return_type(node, union_typedict)
 
             self.newline(extra=1)
@@ -519,17 +519,19 @@ class CythVisitor(BASE_CLASS):
             # be needed if statement/write/etc all returned values rather than writing a stream
             index_before = len(self.result)
             self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
-            nonsig_typedict = self.signature(node.args, typedict=param_typedict)
+            nonsig_typedict = self.signature(node.args, typedict=param_typedict)  # NOQA
             #cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
             self.write(')')
             function_signature = ''.join(self.result[index_before:])
             self.interface_lines.append(function_signature)
             self.write(':')
-            #self.indentation += 1
-            #cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
-            #for s in cyth_def_body:
-            #    self.write('\n', s)
-            #self.indentation -= 1
+            # TODO FIXME: the typedict parser is a giant hack right now.
+            # Find a good cython parser
+            self.indentation += 1
+            cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
+            for s in cyth_def_body:
+                self.write('\n', s)
+            self.indentation -= 1
             self.body(new_body)
         else:
             self.plain_funcs[node.name] = node
@@ -651,8 +653,14 @@ def assignment_targets(node):
         raise AssertionError('unexpected node type %r' % type(node))
 
 
+#def parseparen(string):
+#    src = cStringIO.StringIO(line3).readline
+#    tokentup_list = list(tokenize.generate_tokens(src))
+#    token_list = [token[1] for token in tokentup_list]
+
+
 def parse_cdef_line(line):
-    '''
+    """
     >>> from cyth.cyth_script import *
     >>> line1 = 'np.array[float, ndims=2] x, y, z'
     >>> sorted(parse_cdef_line(line1).items())
@@ -663,15 +671,29 @@ def parse_cdef_line(line):
     >>> line3 = 'cdef np.ndarray[np.float64_t, ndim=1] out = np.zeros((nMats,), dtype=np.float64)'
     >>> sorted(parse_cdef_line(line3).items())
     [('out', 'np.ndarray[np.float64_t, ndim=1]')]
-
-    '''
+    """
+    line = line.replace(' = ', '=')
     tokens = line.replace('cdef ', '').strip().split(' ')
     for ix, token in enumerate(tokens):
         if token.find(",") == -1:
             break
-    _type = ''.join(tokens[:ix+1])
-    varnames_possibly_with_assignments = ''.join(tokens[ix+1:]).split(",")
-    varnames = (x.split('=')[0] for x in varnames_possibly_with_assignments)
+    _type = ''.join(tokens[:ix + 1])
+    varnames_split_ = ''.join(tokens[ix + 1:]).split(",")
+    varnames_hack_ = []
+    lparen = 0
+    rparen = 0
+    current = ''
+    # Not a general solution
+    for t in varnames_split_:
+        lparen += t.count('(')
+        rparen += t.count(')')
+        if lparen != rparen:
+            current += t + ','
+        else:
+            current += t
+            varnames_hack_.append(current)
+            current = ''
+    varnames = (x.split('=')[0] for x in varnames_hack_)
     typedict = {varname.strip(): _type.strip() for varname in varnames}
     return typedict
 
