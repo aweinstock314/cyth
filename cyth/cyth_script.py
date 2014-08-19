@@ -136,14 +136,16 @@ class CythVisitor(BASE_CLASS):
                 cdef_mode = True
                 continue
             if cdef_mode or line.startswith('cdef '):
-                #def parse_cdef_line(line):
-                #    # todo put in better line parsing
-                #    # allow for cdef np.array[float, ndims=2] x, y, z
-                #    type_ = []
-                #    lbrackets = 0
-                #    for sub in line.split(','):
-                #        sub
-                #    pass
+                def parse_cdef_line(line):
+                    """
+                    line = 'np.array[float, ndims=2] x, y, z'
+                    # todo put in better line parsing
+                    # allow for cdef
+                    type_ = []
+                    lbrackets = 0
+                    for sub in line.split(','):
+                        sub
+                    pass
                 assign_str = line.replace('cdef ', '')
                 pos = assign_str.rfind(' ')
                 type_ = assign_str[:pos]
