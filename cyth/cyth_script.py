@@ -146,6 +146,7 @@ class CythVisitor(BASE_CLASS):
                     for sub in line.split(','):
                         sub
                     pass
+                    """
                 assign_str = line.replace('cdef ', '')
                 pos = assign_str.rfind(' ')
                 type_ = assign_str[:pos]
@@ -161,6 +162,13 @@ class CythVisitor(BASE_CLASS):
         if len(typedict) == 0:
             res.append(self.indent_with + 'pass')
         return res
+
+    def register_benchmark(self, funcname, docstr, modname):
+        if funcname:
+            # Parse doctests for benchmarks
+            (bench_name, bench_code) = parse_benchmarks(funcname, docstr, modname)
+            self.benchmark_names.append(bench_name)
+            self.benchmark_codes.append(bench_code)
 
     def parse_cyth_markup(self, docstr, toplevel=False, funcdef_node=None):
         funcname = None if funcdef_node is None else funcdef_node.name
@@ -185,11 +193,7 @@ class CythVisitor(BASE_CLASS):
 
         # only return something if CYTH markup was found
         if has_markup:
-            if funcname:
-                # Parse doctests for benchmarks
-                (bench_name, bench_code) = parse_benchmarks(funcname, docstr, self.py_modname)
-                self.benchmark_names.append(bench_name)
-                self.benchmark_codes.append(bench_code)
+            self.register_benchmark(funcname, docstr, self.py_modname)
             if toplevel:
                 # module level cyth-docstrs are always CYTH:REPLACE
                 comment_str = re.sub('<CYTH>', '<CYTH:REPLACE>', comment_str)
@@ -210,6 +214,110 @@ class CythVisitor(BASE_CLASS):
                                'match',
                                'comment_str'])
         return None
+
+    def parse_cyth_preproc_markup(self, docstr, cyth_mode, funcdef_node=None):
+        source_lines = []
+        param_typedict = {}
+        bodyvars_typedict = {}
+        preproc_vars_dict = {'CYTH': True}
+        return_type_ptr = [None]
+        cyth_mode_ptr = [cyth_mode]
+
+        def handle_if(matcher):
+            varname = matcher.group(1)
+            # change to a stack in order to support nested ifs
+            #print('handle_if: %r' % varname)
+            cyth_mode_ptr[0] = preproc_vars_dict.get(varname, False)
+
+        def handle_else(matcher):
+            #print('handle_else: %r' % (cyth_mode_ptr[0],))
+            #cyth_mode_ptr[0] = not cyth_mode_ptr[0]
+            pass # deliberate no-op
+
+        def handle_endif(matcher):
+            #print('handle_endif')
+            cyth_mode_ptr[0] = False # pop the top item in the stack for nested ifs
+
+        def handle_returns_decl(matcher):
+            return_type_ptr[0] = matcher.group(1)
+            #print('handle_returns %r' % return_type_ptr[0])
+
+        oneline_directives = [('#' + a, b) for (a, b) in [
+            ('if (.*)', handle_if),
+            ('else', handle_else),
+            ('endif', handle_endif),
+            ('CYTH_RETURNS (.*)', handle_returns_decl),
+        ]]
+
+        def handle_param_types(matcher, lines):
+            # the indent/unindent pair is not a no-op: unindent goes all the way, 
+            # indent just does one step
+            #print(lines)
+            #cythdef = '\n'.join(['cdef:\n'].append(utool.indent(utool.unindent('\n'.join(lines))).split('\n')))
+            #print('synthesized_cythdef = %r' % (cythdef,))
+            #param_typedict.update(self.parse_cythdef(cythdef))
+            for line in lines:
+                tmp_typedict = parse_cdef_line(line)
+                #print('%r -> %r' % (line, tmp_typedict))
+                param_typedict.update(tmp_typedict)
+
+        def handle_cdef(matcher, lines):
+            for line in lines:
+                tmp_typedict = parse_cdef_line(line)
+                #print('%r -> %r' % (line, tmp_typedict))
+                bodyvars_typedict.update(tmp_typedict)
+
+        multiline_directives = [((a + ":"), b) for (a, b) in [
+            ('#CYTH_PARAM_TYPES', handle_param_types),
+            #('cdef', handle_cdef)
+        ]]
+
+        regex_compile_car = lambda (a, b): (re.compile(a), b)
+        #print(list(oneline_directives))
+        compiled_oneline_directives = list(map(regex_compile_car, oneline_directives))
+        compiled_multiline_directives = list(map(regex_compile_car, multiline_directives))
+
+        # hack for lack of labeled continues
+        def loop_body(line):
+            #print('cyth_mode_ptr[0] = %r, Line "%s"' % (cyth_mode_ptr[0], line))
+            for (regex, handler) in compiled_oneline_directives:
+                match = regex.search(line)
+                if match:
+                    handler(match)
+                    return None
+            for (regex, handler) in compiled_multiline_directives:
+                match = regex.search(line)
+                if match:
+                    return (match, handler)
+            if cyth_mode_ptr[0]:
+                if line.strip().startswith('cdef'):
+                    bodyvars_typedict.update(parse_cdef_line(line))
+                source_lines.append('\n'+line)
+                return None
+
+        multiline_buffer = []
+        multiline_start_indent = None
+        do_multiline = None
+        for line in docstr.split('\n'):
+            #print('do_multiline = %r, Line "%s"' % (do_multiline, line))
+            if do_multiline:
+                current_indentation = utool.get_indentation(line)
+                if multiline_start_indent < current_indentation:
+                    multiline_buffer.append(line)
+                    continue
+                else:
+                    #print('calling handler')
+                    (match, handler) = do_multiline
+                    handler(match, multiline_buffer)
+                    multiline_buffer = []
+                    multiline_start_indent = None
+            do_multiline = loop_body(line)
+            if do_multiline:
+                assert multiline_buffer == [], multiline_buffer
+                multiline_start_indent = utool.get_indentation(line)
+
+        #print('at return, cyth_mode_ptr[0] is %r' % (cyth_mode_ptr[0],))
+        return source_lines, cyth_mode_ptr[0], param_typedict, bodyvars_typedict, return_type_ptr[0]
 
     def visit_Module(self, node):
         # cr = CallRecorder()
@@ -321,6 +429,7 @@ class CythVisitor(BASE_CLASS):
             #return is_called
 
         called_funcs = []
+        print('module_func_dict = %r' % (module_func_dict.keys(),))
         for callee in module_func_dict.keys():
             for (caller, caller_node) in six.iteritems(self.cythonized_funcs):
                 if is_called_in(callee, caller_node):
@@ -355,61 +464,119 @@ class CythVisitor(BASE_CLASS):
                 return BASE_CLASS.visit_Call(self, newnode)
         return BASE_CLASS.visit_Call(self, node)
 
+    def visit_str(self, string):
+        self.write(string)
+
     def visit_FunctionDef(self, node):
         #super(CythVisitor, self).visit_FunctionDef(node)
         new_body = []
-        actiontup = None
+        #actiontup = None
+        cyth_mode = False # used for #if/else/endif
+        param_typedict = {}
+        bodyvars_typedict = {}
+        return_type = None
+        has_markup = False
+        first_docstr = None
         for stmt in node.body:
             if is_docstring(stmt):
-                #print('found comment_str')
                 docstr = stmt.value.s
-                actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)
+                if first_docstr is None:
+                    first_docstr = docstr
+                has_markup = has_markup or docstr.find('CYTH') != -1
+                #actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)
+                source_lines, cyth_mode, new_param_typedict, new_bodyvars_typedict, new_return_type = \
+                    self.parse_cyth_preproc_markup(docstr, cyth_mode, funcdef_node=node)
+                #print('source_lines: %r' % (source_lines,))
+                new_body.extend(source_lines)
+                if new_return_type is not None and return_type is None:
+                    return_type = new_return_type
+                param_typedict.update(new_param_typedict)
+                bodyvars_typedict.update(new_bodyvars_typedict)
             else:
-                new_body.append(stmt)
-        if actiontup:
+                #print('cyth_mode: %r, stmt: %r' % (cyth_mode, ast.dump(stmt)))
+                if not cyth_mode:
+                    new_body.append(stmt)
+        if has_markup:
             self.cythonized_funcs[node.name] = node
-            if actiontup[0] == 'defines':
-                _, cyth_def, typedict, return_type = actiontup
-                #self.decorators(node, 2)
-                self.newline(extra=1)
-                cyth_funcname = cyth_helpers.get_cyth_name(node.name)
-                # TODO: should allow for user specification
-                func_prefix = utool.unindent('''
-                @cython.boundscheck(False)
-                @cython.wraparound(False)
-                ''').strip()
+            self.register_benchmark(node.name, first_docstr, self.py_modname)
+            union_typedict = {}
+            union_typedict.update(param_typedict)
+            union_typedict.update(bodyvars_typedict)
+            if return_type == None:
+                return_type = infer_return_type(node, union_typedict)
 
-                return_string = (" %s " % return_type) if return_type is not None else " "
-                #self.statement(node, func_prefix + '\ncpdef%s%s(' % (return_string, cyth_funcname,))
-                self.statement(node, func_prefix + '\n')
-                # HACK: indexing is used to extract a portion of the generated stream, which wouldn't
-                # be needed if statement/write/etc all returned values rather than writing a stream
-                index_before = len(self.result)
-                self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
-                nonsig_typedict = self.signature(node.args, typedict=typedict)
-                cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
-                self.write(')')
-                function_signature = ''.join(self.result[index_before:])
-                self.interface_lines.append(function_signature)
-                if getattr(node, 'returns', None) is not None:
-                    self.write(' ->', node.returns)
-                self.write(':')
-                self.indentation += 1
-                for s in cyth_def_body:
-                    self.write('\n', s)
-                self.indentation -= 1
-                self.body(new_body)
-            elif actiontup[0] == 'replace':
-                cyth_def = actiontup[1]
-                self.newline(extra=1)
-                self.write(cyth_def)
-                regex_flags = re.MULTILINE
-                sig_regex = re.compile('(cpdef.*\)):$', regex_flags)
-                match = sig_regex.search(cyth_def)
-                function_signature = match.group(1)
-                self.interface_lines.append(function_signature)
+            self.newline(extra=1)
+            cyth_funcname = cyth_helpers.get_cyth_name(node.name)
+            # TODO: should allow for user specification
+            func_prefix = utool.unindent('''
+            @cython.boundscheck(False)
+            @cython.wraparound(False)
+            ''').strip()
+
+            return_string = (" %s " % return_type) if return_type is not None else " "
+            self.statement(node, func_prefix + '\n')
+            # HACK: indexing is used to extract a portion of the generated stream, which wouldn't
+            # be needed if statement/write/etc all returned values rather than writing a stream
+            index_before = len(self.result)
+            self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
+            nonsig_typedict = self.signature(node.args, typedict=param_typedict)
+            #cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
+            self.write(')')
+            function_signature = ''.join(self.result[index_before:])
+            self.interface_lines.append(function_signature)
+            self.write(':')
+            #self.indentation += 1
+            #cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
+            #for s in cyth_def_body:
+            #    self.write('\n', s)
+            #self.indentation -= 1
+            self.body(new_body)
         else:
             self.plain_funcs[node.name] = node
+#        if actiontup:
+#            self.cythonized_funcs[node.name] = node
+#            if actiontup[0] == 'defines':
+#                _, cyth_def, typedict, return_type = actiontup
+#                #self.decorators(node, 2)
+#                self.newline(extra=1)
+#                cyth_funcname = cyth_helpers.get_cyth_name(node.name)
+#                # TODO: should allow for user specification
+#                func_prefix = utool.unindent('''
+#                @cython.boundscheck(False)
+#                @cython.wraparound(False)
+#                ''').strip()
+#
+#                return_string = (" %s " % return_type) if return_type is not None else " "
+#                #self.statement(node, func_prefix + '\ncpdef%s%s(' % (return_string, cyth_funcname,))
+#                self.statement(node, func_prefix + '\n')
+#                # HACK: indexing is used to extract a portion of the generated stream, which wouldn't
+#                # be needed if statement/write/etc all returned values rather than writing a stream
+#                index_before = len(self.result)
+#                self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
+#                nonsig_typedict = self.signature(node.args, typedict=typedict)
+#                cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
+#                self.write(')')
+#                function_signature = ''.join(self.result[index_before:])
+#                self.interface_lines.append(function_signature)
+#                if getattr(node, 'returns', None) is not None:
+#                    self.write(' ->', node.returns)
+#                self.write(':')
+#                self.indentation += 1
+#                for s in cyth_def_body:
+#                    self.write('\n', s)
+#                self.indentation -= 1
+#                self.body(new_body)
+#            elif actiontup[0] == 'replace':
+#                cyth_def = actiontup[1]
+#                self.newline(extra=1)
+#                self.write(cyth_def)
+#                regex_flags = re.MULTILINE
+#                sig_regex = re.compile('(cpdef.*\)):$', regex_flags)
+#                match = sig_regex.search(cyth_def)
+#                function_signature = match.group(1)
+#                self.interface_lines.append(function_signature)
+#        else:
+#            self.plain_funcs[node.name] = node
 
     def comma_list(self, items, trailing=False):
         for idx, item in enumerate(items):
@@ -482,6 +649,31 @@ def assignment_targets(node):
         return assign_targets
     else:
         raise AssertionError('unexpected node type %r' % type(node))
+
+
+def parse_cdef_line(line):
+    '''
+    >>> from cyth.cyth_script import *
+    >>> line1 = 'np.array[float, ndims=2] x, y, z'
+    >>> sorted(parse_cdef_line(line1).items())
+    [('x', 'np.array[float,ndims=2]'), ('y', 'np.array[float,ndims=2]'), ('z', 'np.array[float,ndims=2]')]
+    >>> line2 = 'cdef int x=y, y=2, z=3'
+    >>> sorted(parse_cdef_line(line2).items())
+    [('x', 'int'), ('y', 'int'), ('z', 'int')]
+    >>> line3 = 'cdef np.ndarray[np.float64_t, ndim=1] out = np.zeros((nMats,), dtype=np.float64)'
+    >>> sorted(parse_cdef_line(line3).items())
+    [('out', 'np.ndarray[np.float64_t, ndim=1]')]
+
+    '''
+    tokens = line.replace('cdef ', '').strip().split(' ')
+    for ix, token in enumerate(tokens):
+        if token.find(",") == -1:
+            break
+    _type = ''.join(tokens[:ix+1])
+    varnames_possibly_with_assignments = ''.join(tokens[ix+1:]).split(",")
+    varnames = (x.split('=')[0] for x in varnames_possibly_with_assignments)
+    typedict = {varname.strip(): _type.strip() for varname in varnames}
+    return typedict
 
 
 class FirstpassInformationGatherer(ast.NodeVisitor):
@@ -627,6 +819,7 @@ def make_benchmarks(funcname, docstring, py_modname):
     >>> py_modname = 'cyth.cyth_script'
     >>> benchmark_list = list(make_benchmarks(funcname, docstring, py_modname))
     >>> print(benchmark_list)
+    [[("replace_funcalls('foo(5)', 'foo', 'bar')", "_replace_funcalls_cyth('foo(5)', 'foo', 'bar')"), ("replace_funcalls('foo(5)', 'bar', 'baz')", "_replace_funcalls_cyth('foo(5)', 'bar', 'baz')")], "from cyth.cyth_script import _replace_funcalls_cyth\nfrom cyth_script import *  # NOQA\nreplace_funcalls('foo(5)', 'foo', 'bar')\nreplace_funcalls('foo(5)', 'bar', 'baz')\n"]
 
     #>>> output = [((x.source, x.want), y.source, y.want) for x, y in benchmark_list]
     #>>> print(utool.hashstr(repr(output)))
@@ -707,7 +900,7 @@ def translate_fpath(py_fpath):
     # Read the python file
     py_text = utool.read_from(py_fpath, verbose=False)
     # dont parse files without tags
-    if py_text.find('<CYTH') == -1:
+    if py_text.find('CYTH') == -1:
         return None
     print('[cyth.translate_fpath] py_fpath=%r' % py_fpath)
     # Parse the python file
