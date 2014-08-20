@@ -23,6 +23,8 @@ import re
 import doctest
 import cyth  # NOQA
 from copy import deepcopy
+from cyth.cyth_decorators import MACRO_EXPANDERS_DICT
+import cyth.cyth_pragmas
 BASE_CLASS = astor.codegen.SourceGenerator
 
 
@@ -55,6 +57,7 @@ class CythVisitor(BASE_CLASS):
         self.spig = SecondpassInformationGatherer(self.fpig)
         self.modules_to_cimport = []
         self.interface_lines = []  # generated for the pxd header
+        self.gensym = cyth.cyth_pragmas.make_gensym_function()
 
     def get_result(self):
         """ returns cythonized pyx text """
@@ -215,13 +218,14 @@ class CythVisitor(BASE_CLASS):
                                'comment_str'])
         return None
 
-    def parse_cyth_preproc_markup(self, docstr, cyth_mode, funcdef_node=None):
+    def parse_cyth_preproc_markup(self, docstr, cyth_mode, collect_macro_input, macro_input_buffer_ptr, suspended_macro_context_ptr, funcdef_node=None):
         source_lines = []
         param_typedict = {}
         bodyvars_typedict = {}
         preproc_vars_dict = {'CYTH': True}
         return_type_ptr = [None]
         cyth_mode_ptr = [cyth_mode]
+        collect_macro_input_ptr = [collect_macro_input]
 
         def handle_if(matcher):
             varname = matcher.group(1)
@@ -242,11 +246,43 @@ class CythVisitor(BASE_CLASS):
             return_type_ptr[0] = matcher.group(1)
             #print('handle_returns %r' % return_type_ptr[0])
 
+        def handle_macro(matcher):
+            ''' this should eventually be changed to reuse 
+                the machinery for multiline '''
+            macro_name = matcher.group(1)
+            suspended_macro_context_ptr[0] = (macro_name,)
+            collect_macro_input_ptr[0] = True
+            assert len(macro_input_buffer_ptr[0]) == 0, macro_input_buffer_ptr[0]
+
+        def handle_endmacro(matcher):
+            ''' this is quite a bit hacky, but this is the 
+                most straightforward way to implement them until the 
+                parse_cyth_preproc_markup/visit_FunctionDef 'coroutine' 
+                blob is refactored '''
+            (macro_name,) = suspended_macro_context_ptr[0]
+            lines = macro_input_buffer_ptr[0]
+            #print('macro invokation of "%s" on lines %r' % (macro_name, lines))
+            expander = MACRO_EXPANDERS_DICT.get(macro_name, None)
+            if expander:
+                expanded_lines = ['\n'] + expander(self.gensym, lines) + ['\n']
+            else:
+                errmsg = 'No macro named %r has been registered via the cyth.macro decorator'
+                raise NotImplementedError(errmsg % macro_name)
+
+            indented_expanded_lines = [utool.indent(x, indent=self.indent_with * (self.indentation + 1))
+                                        for x in expanded_lines]
+            #print('output is %r' % expanded_lines)
+            source_lines.extend(indented_expanded_lines)
+            collect_macro_input_ptr[0] = False
+            macro_input_buffer_ptr[0] = []
+
         oneline_directives = [('#' + a, b) for (a, b) in [
             ('if (.*)', handle_if),
             ('else', handle_else),
             ('endif', handle_endif),
             ('CYTH_RETURNS (.*)', handle_returns_decl),
+            ('macro ([^ ]*).*', handle_macro),
+            ('endmacro', handle_endmacro), # HACK
         ]]
 
         def handle_param_types(matcher, lines):
@@ -269,7 +305,7 @@ class CythVisitor(BASE_CLASS):
 
         multiline_directives = [((a + ":"), b) for (a, b) in [
             ('#CYTH_PARAM_TYPES', handle_param_types),
-            ('cdef', handle_cdef)
+            ('cdef', handle_cdef),
         ]]
 
         regex_compile_car = lambda (a, b): (re.compile(a), b)
@@ -319,7 +355,7 @@ class CythVisitor(BASE_CLASS):
                 multiline_start_indent = utool.get_indentation(line)
 
         #print('at return, cyth_mode_ptr[0] is %r' % (cyth_mode_ptr[0],))
-        return source_lines, cyth_mode_ptr[0], param_typedict, bodyvars_typedict, return_type_ptr[0]
+        return source_lines, cyth_mode_ptr[0], collect_macro_input_ptr[0], param_typedict, bodyvars_typedict, return_type_ptr[0]
 
     def visit_Module(self, node):
         # cr = CallRecorder()
@@ -479,6 +515,9 @@ class CythVisitor(BASE_CLASS):
         return_type = None
         has_markup = False
         first_docstr = None
+        collect_macro_input = False
+        macro_input_buffer_ptr = [[]]
+        suspended_macro_context_ptr = [None]
         for stmt in node.body:
             if is_docstring(stmt):
                 docstr = stmt.value.s
@@ -486,8 +525,11 @@ class CythVisitor(BASE_CLASS):
                     first_docstr = docstr
                 has_markup = has_markup or docstr.find('CYTH') != -1
                 #actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)
-                source_lines, cyth_mode, new_param_typedict, new_bodyvars_typedict, new_return_type = \
-                    self.parse_cyth_preproc_markup(docstr, cyth_mode, funcdef_node=node)
+                (source_lines, cyth_mode, collect_macro_input,
+                    new_param_typedict, new_bodyvars_typedict, 
+                    new_return_type) = self.parse_cyth_preproc_markup(docstr, cyth_mode, 
+                                                collect_macro_input, macro_input_buffer_ptr,
+                                                suspended_macro_context_ptr, funcdef_node=node)
                 #print('source_lines: %r' % (source_lines,))
                 new_body.extend(source_lines)
                 if new_return_type is not None and return_type is None:
@@ -496,8 +538,10 @@ class CythVisitor(BASE_CLASS):
                 bodyvars_typedict.update(new_bodyvars_typedict)
             else:
                 #print('cyth_mode: %r, stmt: %r' % (cyth_mode, ast.dump(stmt)))
-                if not cyth_mode:
+                if not (cyth_mode or collect_macro_input):
                     new_body.append(stmt)
+                if collect_macro_input:
+                    macro_input_buffer_ptr[0].append(ast_to_sourcecode(stmt))
         if has_markup:
             self.cythonized_funcs[node.name] = node
             self.register_benchmark(node.name, first_docstr, self.py_modname)

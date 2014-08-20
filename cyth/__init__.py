@@ -7,8 +7,10 @@ __version__ = '1.0.0.dev1'
 from .cyth_args import WITH_CYTH, CYTH_WRITE, DYNAMIC
 from . import cyth_helpers
 from . import cyth_importer
+from . import cyth_decorators
 from .cyth_importer import import_cyth_execstr
 from .cyth_script import translate, translate_all
+from .cyth_decorators import macro
 
 
 '''

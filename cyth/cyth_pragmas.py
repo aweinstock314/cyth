@@ -5,7 +5,7 @@ from __future__ import absolute_import, division, print_function
 import parse
 import re
 from functools import partial
-
+from .cyth_decorators import macro
 
 def parens(str_):
     return '(' + str_ + ')'
@@ -50,6 +50,7 @@ def make_gensym_function(suffix='gensym'):
         return '%s__%s%s' % (prefix, suffix, number)
     return gensym
 
+@macro
 def numpy_fancy_index_macro(gensym, lines):
     return map(partial(numpy_fancy_index_assign, gensym), lines)
 
@@ -80,10 +81,11 @@ def numpy_fancy_index_assign(gensym, line):
     # Break fancy slices into individual slices
     slice_list = [_.strip() for _ in _fancy_slice.split(',')]
 
-    dim_ix_x_fmt     = gensym('dim{ix}_x')
+    dim_ix_idx_fmt     = gensym('dim{ix}_idx')
     dim_ix_fmt       = gensym('dim{ix}')
     defdim_fmt       = 'cdef size_t {dim_ix_fmt} = {{arr2}}.shape[{{ix}}]'.format(dim_ix_fmt=dim_ix_fmt)
-    alloc_ouput_fmt  = 'cdef np.ndarray {arr1} = np.ndarray(({rhs_shape}), {arr2}.dtype)'
+    #alloc_ouput_fmt  = 'cdef np.ndarray {arr1} = np.ndarray(({rhs_shape}), {arr2}.dtype)'
+    alloc_ouput_fmt  = '{arr1} = np.ndarray(({rhs_shape}), {arr2}.dtype)'
     for_fmt          = '{indent}for {dim_x} in range({dimsize}):'
     assign_index_fmt = '{indent}{arr1}[{rhs_index}] = {arr2}[{lhs_index}]'
 
@@ -112,10 +114,10 @@ def numpy_fancy_index_assign(gensym, line):
     # So hacky and special cased
     for ix, dimsize in enumerate(rhs_dimsize_list):
         slicerange = rhs_slicerange_list[ix]
-        dim_x = dim_ix_x_fmt.format(ix=ix)
+        dim_x = dim_ix_idx_fmt.format(ix=ix)
         if len(slicerange) == 1:
             lhs_shapex_list.append(dimsize)
-            rhs_shapex_list.append('0')
+            #rhs_shapex_list.append('0')
         else:
             rhs_shapex_list.append(dim_x)
             lhs_shapex_list.append(dim_x)
@@ -136,6 +138,6 @@ def numpy_fancy_index_assign(gensym, line):
     assign_index_line = assign_index_fmt.format(**locals())
 
     output_lines = [defdim_assign, alloc_output_line, for_lines, assign_index_line]
-    output_block = '\n'.join(output_lines)
+    output_block = '\n' + '\n'.join(output_lines) + '\n\n'
     print(output_block)
     return output_block
