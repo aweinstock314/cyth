@@ -114,6 +114,8 @@ def import_cyth_execstr(pyth_modname):
         cyth_list2 = ['import ' + cyth_modname] + utool.align_lines(sorted(cyth_list), '=')
     except ImportError:
         cyth_list2 = ['raise ImportError("no cyth")']
+    except Exception as ex:
+        cyth_list2 = ['raise ImportError("cyth import error: %s")' % str(ex)]
 
     cyth_block = utool.indentjoin(cyth_list2).strip()
     pyth_block = utool.indentjoin(pyth_list2).strip()
