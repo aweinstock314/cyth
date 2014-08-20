@@ -4,6 +4,7 @@ python -c "import cyth, doctest; print(doctest.testmod(cyth.cyth_pragmas))"
 from __future__ import absolute_import, division, print_function
 import parse
 import re
+from functools import partial
 
 
 def parens(str_):
@@ -16,7 +17,7 @@ def is_constant(expr, known_constants=[]):
     return False
 
 
-def get_slicerange(slice_, ix=0):
+def get_slicerange(slice_, dim_name='dim0'):
     """
     slice_ = 'start:stop:stride'
     """
@@ -30,28 +31,39 @@ def get_slicerange(slice_, ix=0):
             raise NotImplementedError('custom input')
     elif len(tup) == 2:
         start = '0' if tup[0] == '' else tup[0]
-        stop = 'shape_{ix}'.format(ix=ix) if tup[1] == '' else tup[1]
+        stop = dim_name if tup[1] == '' else tup[1]
         slicerange = (start, stop)
     elif len(tup) == 3:
         start = '0' if tup[0] == '' else tup[0]
-        stop = 'shape_{ix}'.format(ix=ix) if tup[1] == '' else tup[1]
+        stop = dim_name if tup[1] == '' else tup[1]
         stride = '1' if tup[2] == '' else tup[2]
         slicerange = (start, stop, stride)
     else:
         raise AssertionError('??')
     return slicerange
 
+def make_gensym_function(suffix='gensym'):
+    gensym_dict = {}
+    def gensym(prefix):
+        number = gensym_dict.get(prefix, 0)
+        gensym_dict[prefix] = number + 1
+        return '%s__%s%s' % (prefix, suffix, number)
+    return gensym
 
-def numpy_fancy_index_assign(line):
+def numpy_fancy_index_macro(gensym, lines):
+    return map(partial(numpy_fancy_index_assign, gensym), lines)
+
+def numpy_fancy_index_assign(gensym, line):
     """
     Input is gaurenteed to be one numpy array assigning to another.
     Still in development. May break for complicated cases.
 
     >>> from cyth.cyth_pragmas import *
-    >>> line = '_iv21s = invVR_mats[:, 1, :]'
-    >>> block1 = numpy_fancy_index_assign('_iv11s = invVR_mats[:, 0, 0]')
-    >>> block2 = numpy_fancy_index_assign('_iv12s = invVR_mats[:, :, 1]')
-    >>> block3 = numpy_fancy_index_assign('_iv21s = invVR_mats[:, 1, :]')
+    >>> gensym = make_gensym_function()
+    >>> block1 = numpy_fancy_index_assign(gensym, '_iv11s = invVR_mats[:, 0, 0]')
+    >>> block2 = numpy_fancy_index_assign(gensym, '_iv12s = invVR_mats[:, :, 1]')
+    >>> block3 = numpy_fancy_index_assign(gensym, '_iv21s = invVR_mats[:, 1, :]')
+    >>> block4 = numpy_fancy_index_assign(gensym, '_iv22s = invVR_mats[:, 1, 1]')
     >>> print('\n'.join((block1, block2, block3, block4)))
 
     A shape is a tuple of array dimensions
@@ -68,13 +80,14 @@ def numpy_fancy_index_assign(line):
     # Break fancy slices into individual slices
     slice_list = [_.strip() for _ in _fancy_slice.split(',')]
 
-    dim_x_fmt        = 'dim{ix}_x'
-    defdim_fmt       = 'cdef size_t dim{ix} = {arr2}.shape[{ix}]'
+    dim_ix_x_fmt     = gensym('dim{ix}_x')
+    dim_ix_fmt       = gensym('dim{ix}')
+    defdim_fmt       = 'cdef size_t {dim_ix_fmt} = {{arr2}}.shape[{{ix}}]'.format(dim_ix_fmt=dim_ix_fmt)
     alloc_ouput_fmt  = 'cdef np.ndarray {arr1} = np.ndarray(({rhs_shape}), {arr2}.dtype)'
-    for_fmt          = '{indent}for {dim_x} in range({dimsize}) :'
+    for_fmt          = '{indent}for {dim_x} in range({dimsize}):'
     assign_index_fmt = '{indent}{arr1}[{rhs_index}] = {arr2}[{lhs_index}]'
 
-    rhs_slicerange_list = [get_slicerange(slice_, ix) for ix, slice_ in enumerate(slice_list)]
+    rhs_slicerange_list = [get_slicerange(slice_, dim_ix_fmt.format(ix=ix)) for ix, slice_ in enumerate(slice_list)]
     lhs_slicerange_list = [('0',) if len(slicerange) == 1 else slicerange for slicerange in rhs_slicerange_list]
 
     rhs_dimsize_list = [slicerange[0]
@@ -88,7 +101,7 @@ def numpy_fancy_index_assign(line):
 
     rhs_shape_list = [', '.join(slicerange) for slicerange in rhs_slicerange_list]
 
-    #rhs_shape = parens(', '.join(rhs_dimsize_list))
+    rhs_shape = parens(', '.join(rhs_dimsize_list))
     #lhs_shape = parens(', '.join(lhs_dimsize_list))
 
     indent = ''
@@ -99,7 +112,7 @@ def numpy_fancy_index_assign(line):
     # So hacky and special cased
     for ix, dimsize in enumerate(rhs_dimsize_list):
         slicerange = rhs_slicerange_list[ix]
-        dim_x = dim_x_fmt.format(ix=ix)
+        dim_x = dim_ix_x_fmt.format(ix=ix)
         if len(slicerange) == 1:
             lhs_shapex_list.append(dimsize)
             rhs_shapex_list.append('0')
