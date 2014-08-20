@@ -290,8 +290,10 @@ class CythVisitor(BASE_CLASS):
                 if match:
                     return (match, handler)
             if cyth_mode_ptr[0]:
-                if line.strip().startswith('cdef'):
-                    bodyvars_typedict.update(parse_cdef_line(line))
+                #if line.strip().startswith('cdef'):
+                #    bodyvars_typedict.update(parse_cdef_line(line))
+                #    #source_lines.append('\n' + line.replace('cdef [^ ]*', ''))
+                ##else:
                 source_lines.append('\n' + line)
                 return None
 
@@ -519,8 +521,8 @@ class CythVisitor(BASE_CLASS):
             # be needed if statement/write/etc all returned values rather than writing a stream
             index_before = len(self.result)
             self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
-            nonsig_typedict = self.signature(node.args, typedict=param_typedict)  # NOQA
-            #cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
+            nonsig_typedict = self.signature(node.args, typedict=union_typedict)
+            cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
             self.write(')')
             function_signature = ''.join(self.result[index_before:])
             self.interface_lines.append(function_signature)
@@ -528,7 +530,7 @@ class CythVisitor(BASE_CLASS):
             # TODO FIXME: the typedict parser is a giant hack right now.
             # Find a good cython parser
             self.indentation += 1
-            cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
+            #cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
             for s in cyth_def_body:
                 self.write('\n', s)
             self.indentation -= 1
