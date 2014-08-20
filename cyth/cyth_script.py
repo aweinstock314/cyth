@@ -247,7 +247,7 @@ class CythVisitor(BASE_CLASS):
             #print('handle_returns %r' % return_type_ptr[0])
 
         def handle_macro(matcher):
-            ''' this should eventually be changed to reuse 
+            ''' this should eventually be changed to reuse
                 the machinery for multiline '''
             macro_name = matcher.group(1)
             suspended_macro_context_ptr[0] = (macro_name,)
@@ -255,9 +255,9 @@ class CythVisitor(BASE_CLASS):
             assert len(macro_input_buffer_ptr[0]) == 0, macro_input_buffer_ptr[0]
 
         def handle_endmacro(matcher):
-            ''' this is quite a bit hacky, but this is the 
-                most straightforward way to implement them until the 
-                parse_cyth_preproc_markup/visit_FunctionDef 'coroutine' 
+            ''' this is quite a bit hacky, but this is the
+                most straightforward way to implement them until the
+                parse_cyth_preproc_markup/visit_FunctionDef 'coroutine'
                 blob is refactored '''
             (macro_name,) = suspended_macro_context_ptr[0]
             lines = macro_input_buffer_ptr[0]
@@ -282,7 +282,7 @@ class CythVisitor(BASE_CLASS):
             ('endif', handle_endif),
             ('CYTH_RETURNS (.*)', handle_returns_decl),
             ('macro ([^ ]*).*', handle_macro),
-            ('endmacro', handle_endmacro), # HACK
+            ('endmacro', handle_endmacro),  # HACK
         ]]
 
         def handle_param_types(matcher, lines):
@@ -526,10 +526,11 @@ class CythVisitor(BASE_CLASS):
                 has_markup = has_markup or docstr.find('CYTH') != -1
                 #actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)
                 (source_lines, cyth_mode, collect_macro_input,
-                    new_param_typedict, new_bodyvars_typedict, 
-                    new_return_type) = self.parse_cyth_preproc_markup(docstr, cyth_mode, 
-                                                collect_macro_input, macro_input_buffer_ptr,
-                                                suspended_macro_context_ptr, funcdef_node=node)
+                 new_param_typedict, new_bodyvars_typedict,
+                 new_return_type) = self.parse_cyth_preproc_markup(
+                    docstr, cyth_mode, collect_macro_input,
+                    macro_input_buffer_ptr, suspended_macro_context_ptr,
+                    funcdef_node=node)
                 #print('source_lines: %r' % (source_lines,))
                 new_body.extend(source_lines)
                 if new_return_type is not None and return_type is None:
@@ -707,7 +708,7 @@ def assignment_targets(node):
 
 def parse_cdef_line(line):
     """
-    >>> from cyth.cyth_script import *
+    >>> from cyth.cyth_script import *  # NOQA
     >>> line1 = 'np.array[float, ndims=2] x, y, z'
     >>> sorted(parse_cdef_line(line1).items())
     [('x', 'np.array[float,ndims=2]'), ('y', 'np.array[float,ndims=2]'), ('z', 'np.array[float,ndims=2]')]
@@ -943,7 +944,7 @@ def parse_benchmarks(funcname, docstring, py_modname):
             pcnt_change_wrt_cyth = (time_delta / pyth_time) * 100
             nepers  = log(cyth_time / pyth_time)
             if time_delta < 0:
-                print('[bench.result] cython was %.1f%% faster' % (-pcnt_change_wrt_cyth,))
+                print('[bench.result] cython was %.1fx faster' % (-pcnt_change_wrt_cyth,))
                 print('[bench.result] cython was %.1f nepers faster' % (-nepers,))
                 print('[bench.result] cython was faster by %f seconds' % -time_delta)
             else:
