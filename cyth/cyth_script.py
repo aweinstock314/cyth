@@ -987,11 +987,6 @@ def translate_fpath(py_fpath):
         return None
     print('\n___________________')
     print('[cyth.translate_fpath] py_fpath=%r' % py_fpath)
-    if CYTHON_HTML:
-        import os
-        print('[cyth.translate_fpath] generating annotation html')
-        cython_exe = utool.get_cython_exe()
-        os.system(cython_exe + ' -a ' + cy_pyxpath)
     # Parse the python file
     visitor = CythVisitor(py_modname=py_modname)
     visitor.visit(ast.parse(py_text))
@@ -1002,6 +997,11 @@ def translate_fpath(py_fpath):
     utool.write_to(cy_pyxpath, pyx_text)
     utool.write_to(cy_pxdpath, pxd_text, verbose=False)
     utool.write_to(cy_benchpath, bench_text, verbose=False)
+    if CYTHON_HTML:
+        import os
+        print('[cyth.translate_fpath] generating annotation html')
+        cython_exe = utool.get_cython_exe()
+        os.system(cython_exe + ' -a ' + cy_pyxpath)
     return cy_benchpath
 
 
