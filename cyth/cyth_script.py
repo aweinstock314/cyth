@@ -572,6 +572,28 @@ class CythVisitor(BASE_CLASS):
             @cython.wraparound(False)
             ''').strip()
 
+            # http://docs.cython.org/src/reference/compilation.html#compiler-directives
+            # [(name, defaultval), ...]
+            cython_compiler_directives = [  # NOQA
+                ('boundscheck', True),
+                ('wraparound', True),
+                ('nonecheck', False),
+                ('overflowcheck', False),
+                ('overflowcheck.fold', True),  # may help or hurt depending on compiler, arch, and opt settings
+                ('embedsignature', False),
+                ('cdivision', False),
+                ('cdivision_warnings', False),
+                ('always_allow_keywords', None),
+                ('profile', False),
+                ('linetrace', False),
+                ('invert_types', None),
+                ('language_level', 2),
+                ('c_string_type', bytes),
+                ('c_string_encoding', 'ascii'),
+                ('type_version_tag', True),
+                ('unraisable_tracebacks', None),
+            ]
+
             return_string = (" %s " % return_type) if return_type is not None else " "
             self.statement(node, func_prefix + '\n')
             # HACK: indexing is used to extract a portion of the generated stream, which wouldn't
