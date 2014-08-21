@@ -997,7 +997,7 @@ def parse_benchmarks(funcname, docstring, py_modname):
                 print('[bench.result] cython was %.1f nepers faster' % (-nepers,))
                 print('[bench.result] cython was faster by %f seconds' % -time_delta)
             else:
-                print('[bench.result] cython was %.1f%% slower' % (pcnt_change_wrt_cyth,))
+                print('[bench.result] cython was %.1fx slower' % (pcnt_change_wrt_cyth,))
                 print('[bench.result] cython was %.1f nepers slower' % (nepers,))
                 print('[bench.result] python was faster by %f seconds' % time_delta)
             pyth_call, cyth_call = tup
