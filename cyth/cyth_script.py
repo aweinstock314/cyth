@@ -663,9 +663,23 @@ class CythVisitor(BASE_CLASS):
         import textwrap
         import warnings
         import utool
+        import six
         warnings.simplefilter('ignore', SyntaxWarning)
         print, print_, printDBG, rrr, profile = utool.inject(__name__, '[{py_modname}.bench]')
 
+        def run_doctest(pyth_call, cyth_call, setup_script):
+            setup_globals_py, setup_locals_py = {{}}, {{}}
+            setup_globals_cy, setup_locals_cy = {{}}, {{}}
+            six.exec_(setup_script, setup_globals_py, setup_locals_py)
+            six.exec_(setup_script, setup_globals_cy, setup_locals_cy)
+            pyth_result = eval(cyth_call, setup_globals_py, setup_locals_py)
+            cyth_result = eval(cyth_call, setup_globals_cy, setup_locals_cy)
+            #print('pyth_result = %r' % pyth_result)
+            #print('cyth_result = %r' % cyth_result)
+            if repr(pyth_result) == repr(cyth_result):
+                print('%r and %r have the same result.' % (pyth_call, cyth_call))
+            else:
+                print('INCONSISTENCY: %r has different output than %r' % (pyth_call, cyth_call))
 
         {codes}
 
@@ -964,6 +978,8 @@ def parse_benchmarks(funcname, docstring, py_modname):
                 print('[bench.result] cython was %.1f%% slower' % (pcnt_change_wrt_cyth,))
                 print('[bench.result] cython was %.1f nepers slower' % (nepers,))
                 print('[bench.result] python was faster by %f seconds' % time_delta)
+            pyth_call, cyth_call = tup
+            run_doctest(pyth_call, cyth_call, setup_script)
             return (pyth_time, cyth_time)
         return list(map(print_timing_info, test_tuples))'''
     bench_code_fmt = utool.unindent(bench_code_fmt_).strip('\n')
