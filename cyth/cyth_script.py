@@ -218,7 +218,7 @@ class CythVisitor(BASE_CLASS):
                                'comment_str'])
         return None
 
-    def parse_cyth_preproc_markup(self, docstr, cyth_mode, collect_macro_input, macro_input_buffer_ptr, suspended_macro_context_ptr, funcdef_node=None):
+    def parse_cyth_preproc_markup(self, docstr, cyth_mode, collect_macro_input, macro_input_buffer_ptr, suspended_macro_context_ptr, inline_flag_ptr):
         source_lines = []
         param_typedict = {}
         bodyvars_typedict = {}
@@ -245,6 +245,9 @@ class CythVisitor(BASE_CLASS):
         def handle_returns_decl(matcher):
             return_type_ptr[0] = matcher.group(1)
             #print('handle_returns %r' % return_type_ptr[0])
+
+        def handle_inline(matcher):
+            inline_flag_ptr[0] = True
 
         def handle_macro(matcher):
             ''' this should eventually be changed to reuse
@@ -281,6 +284,7 @@ class CythVisitor(BASE_CLASS):
             ('else', handle_else),
             ('endif', handle_endif),
             ('CYTH_RETURNS (.*)', handle_returns_decl),
+            ('CYTH_INLINE', handle_inline),
             ('macro ([^ ]*).*', handle_macro),
             ('endmacro', handle_endmacro),  # HACK
         ]]
@@ -515,6 +519,7 @@ class CythVisitor(BASE_CLASS):
         return_type = None
         has_markup = False
         first_docstr = None
+        inline_flag_ptr = [False]
         collect_macro_input = False
         macro_input_buffer_ptr = [[]]
         suspended_macro_context_ptr = [None]
@@ -530,7 +535,7 @@ class CythVisitor(BASE_CLASS):
                  new_return_type) = self.parse_cyth_preproc_markup(
                     docstr, cyth_mode, collect_macro_input,
                     macro_input_buffer_ptr, suspended_macro_context_ptr,
-                    funcdef_node=node)
+                    inline_flag_ptr)
                 #print('source_lines: %r' % (source_lines,))
                 new_body.extend(source_lines)
                 if new_return_type is not None and return_type is None:
@@ -565,7 +570,8 @@ class CythVisitor(BASE_CLASS):
             # HACK: indexing is used to extract a portion of the generated stream, which wouldn't
             # be needed if statement/write/etc all returned values rather than writing a stream
             index_before = len(self.result)
-            self.write('cpdef%s%s(' % (return_string, cyth_funcname,))
+            inline_string = ' inline ' if inline_flag_ptr[0] else ''
+            self.write('cpdef%s%s%s(' % (inline_string, return_string, cyth_funcname,))
             nonsig_typedict = self.signature(node.args, typedict=union_typedict)
             cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)
             self.write(')')
