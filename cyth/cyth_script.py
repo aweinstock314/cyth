@@ -687,6 +687,7 @@ class CythVisitor(BASE_CLASS):
         import utool
         import six
         warnings.simplefilter('ignore', SyntaxWarning)
+        warnings.simplefilter('ignore', RuntimeWarning)
         print, print_, printDBG, rrr, profile = utool.inject(__name__, '[{py_modname}.bench]')
 
         def run_doctest(pyth_call, cyth_call, setup_script):
@@ -696,12 +697,24 @@ class CythVisitor(BASE_CLASS):
             six.exec_(setup_script, setup_globals_cy, setup_locals_cy)
             pyth_result = eval(cyth_call, setup_globals_py, setup_locals_py)
             cyth_result = eval(cyth_call, setup_globals_cy, setup_locals_cy)
-            #print('pyth_result = %r' % pyth_result)
-            #print('cyth_result = %r' % cyth_result)
             if repr(pyth_result) == repr(cyth_result):
-                print('%r and %r have the same result.' % (pyth_call, cyth_call))
+                #print('%r and %r have the same result.' % (pyth_call, cyth_call))
+                print('PASS: output is equivalent')
+                #%r and %r have the same result.' % (pyth_call, cyth_call))
             else:
+                print('<FAILED>')
                 print('INCONSISTENCY: %r has different output than %r' % (pyth_call, cyth_call))
+                print('___________')
+                print('pyth_result')
+                print('-----------')
+                print(repr(pyth_result))
+                print('=========== (end pyth_result)')
+                print('___________')
+                print('cyth_result')
+                print('-----------')
+                print(repr(cyth_result))
+                print('=========== (end cyth_result)')
+                print('</FAILED>')
 
         {codes}
 
