@@ -30,6 +30,7 @@ BASE_CLASS = astor.codegen.SourceGenerator
 
 # See astor/codegen.py for details
 # https://github.com/berkerpeksag/astor/blob/master/astor/codegen.py
+CYTHON_HTML = '--annotate' in sys.argv or '-a' in sys.argv
 
 
 class CythVisitor(BASE_CLASS):
@@ -47,7 +48,7 @@ class CythVisitor(BASE_CLASS):
         self.imported_functions = {}
         #self.all_funcalls = []
         #self.imports_with_usemaps = {}
-        self.import_lines = ["cimport cython", "import cython"]
+        self.import_lines = ['cimport cython', 'import cython']
         self.cimport_whitelist = ['numpy']
         self.cimport_blacklist = ['numpy.core.umath_tests']
         self.import_from_blacklist = ['range', 'map', 'zip']
@@ -250,18 +251,18 @@ class CythVisitor(BASE_CLASS):
             inline_flag_ptr[0] = True
 
         def handle_macro(matcher):
-            ''' this should eventually be changed to reuse
-                the machinery for multiline '''
+            """ this should eventually be changed to reuse
+                the machinery for multiline """
             macro_name = matcher.group(1)
             suspended_macro_context_ptr[0] = (macro_name,)
             collect_macro_input_ptr[0] = True
             assert len(macro_input_buffer_ptr[0]) == 0, macro_input_buffer_ptr[0]
 
         def handle_endmacro(matcher):
-            ''' this is quite a bit hacky, but this is the
+            """ this is quite a bit hacky, but this is the
                 most straightforward way to implement them until the
                 parse_cyth_preproc_markup/visit_FunctionDef 'coroutine'
-                blob is refactored '''
+                blob is refactored """
             (macro_name,) = suspended_macro_context_ptr[0]
             lines = macro_input_buffer_ptr[0]
             #print('macro invokation of "%s" on lines %r' % (macro_name, lines))
@@ -966,10 +967,11 @@ def parse_benchmarks(funcname, docstring, py_modname):
 
 def translate_fpath(py_fpath):
     """ creates a cython pyx file from a python file with cyth tags """
+    # If -a is given, generate cython html for each pyx file
     # Get cython pyx and benchmark output path
-    cy_fpath = cyth_helpers.get_cyth_path(py_fpath)
-    cy_bpath = cyth_helpers.get_cyth_bench_path(py_fpath)
+    cy_pyxpath = cyth_helpers.get_cyth_path(py_fpath)
     cy_pxdpath = cyth_helpers.get_cyth_pxd_path(py_fpath)
+    cy_benchpath = cyth_helpers.get_cyth_bench_path(py_fpath)
     # Infer the python module name
     py_modname = cyth_helpers.get_py_module_name(py_fpath)
     # Read the python file
@@ -977,22 +979,29 @@ def translate_fpath(py_fpath):
     # dont parse files without tags
     if py_text.find('CYTH') == -1:
         return None
+    print('\n___________________')
     print('[cyth.translate_fpath] py_fpath=%r' % py_fpath)
+    if CYTHON_HTML:
+        import os
+        print('[cyth.translate_fpath] generating annotation html')
+        cython_exe = utool.get_cython_exe()
+        os.system(cython_exe + ' -a ' + cy_pyxpath)
     # Parse the python file
     visitor = CythVisitor(py_modname=py_modname)
     visitor.visit(ast.parse(py_text))
     # Get the generated pyx file and benchmark file
-    cython_text, pxd_text = visitor.get_result()
+    pyx_text, pxd_text = visitor.get_result()
     bench_text = visitor.get_benchmarks()
     # Write pyx and benchmark
-    utool.write_to(cy_fpath, cython_text)
-    utool.write_to(cy_bpath, bench_text, verbose=False)
+    utool.write_to(cy_pyxpath, pyx_text)
     utool.write_to(cy_pxdpath, pxd_text, verbose=False)
-    return cy_bpath
+    utool.write_to(cy_benchpath, bench_text, verbose=False)
+    return cy_benchpath
 
 
 def translate(*paths):
     """ Translates a list of paths """
+
     cy_bench_list = []
     for fpath in paths:
         if isfile(fpath):
