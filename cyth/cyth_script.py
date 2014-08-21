@@ -377,12 +377,18 @@ class CythVisitor(BASE_CLASS):
             # parse for cythtags
             if is_docstring(subnode):
                 #print('Encountered global docstring: %s' % repr(subnode.value.s))
-                actiontup = self.parse_cyth_markup(subnode.value.s, toplevel=True)
-                if actiontup is not None:
-                    if actiontup[0] == 'replace':
-                        cyth_def = actiontup[1]
-                        self.newline(extra=1)
-                        self.write(cyth_def)
+                docstr = subnode.value.s
+                #actiontup = self.parse_cyth_markup(docstr, toplevel=True)
+                #if actiontup is not None:
+                #    if actiontup[0] == 'replace':
+                #        cyth_def = actiontup[1]
+                #        self.newline(extra=1)
+                #        self.write(cyth_def)
+                hacky_blob_of_retvals = self.parse_cyth_preproc_markup(docstr, False, False, [[]], [None], [False])
+                lines = hacky_blob_of_retvals[0]
+                self.newline(extra=1)
+                for line in lines:
+                    self.write(line)
             # try to parse functions for cyth tags
             elif isinstance(subnode, ast.FunctionDef):
                 self.visit(subnode)
