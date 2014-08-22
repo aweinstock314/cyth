@@ -2,13 +2,13 @@
 python -c "import doctest, cyth; print(doctest.testmod(cyth.cyth_importer))"
 """
 from __future__ import absolute_import, division, print_function
-from . import cyth_helpers
+from cyth import cyth_args
+from cyth import cyth_helpers
 from os.path import splitext, basename
-import imp
-import utool
 from utool.util_six import get_funcdoc, get_funcname, get_funcglobals  # NOQA
+import imp
 import sys
-from . import cyth_args
+import utool
 
 
 def pkg_submodule_split(pyth_modname):
@@ -99,6 +99,12 @@ def get_cythonized_funcs(pyth_modname):
 
 
 def import_cyth_execstr(pyth_modname):
+    """
+    >>> from cyth.cyth_importer import *  # NOQA
+    >>> from vtool import trig  # NOQA
+    >>> pyth_modname = 'vtool.trig'
+    """
+
     dummy_cythonized_funcs = import_cyth_default(pyth_modname)
     pyth_list = []
     for funcname, func in dummy_cythonized_funcs.items():
@@ -200,23 +206,39 @@ def write_explicit(pyth_modname, execstr):
             print("no write hook for file: %r" % pyth_fpath)
 
 
+def docstr_has_cythtags(docstr):
+    if docstr is None:
+        return False
+    if '#if CYTH' in docstr:
+        return True
+    if '#CYTH_INLINE' in docstr:
+        return True
+
+
 def import_cyth_default(pyth_modname):
     #import IPython
     #IPython.embed()
     module = sys.modules[pyth_modname]  # module currently being imported
     func_list = []
     for key, val in module.__dict__.items():
-        if hasattr(val, 'func_doc'):
+        try:
+            docstr = get_funcdoc(val)
             func = val
-            docstr = get_funcdoc(func)
-            if docstr is not None and '<CYTH' in docstr:
+            if docstr_has_cythtags(docstr):
                 func_list.append(func)
-                #print(func)
-                #print(key)
-                #func2 = func
+                    #print(func)
+                    #print(key)
+                    #func2 = func
+        except AttributeError:
+            pass
     # default to python
+    def _get_cythsafe_funcname(func):
+        pyth_funcname = utool.util_six.get_funcname(func)
+        cythsafe_funcname = cyth_helpers.get_cyth_safe_funcname(pyth_funcname)
+        return cythsafe_funcname
+
     dummy_cythonized_funcs = {
-        utool.util_six.get_funcname(func) + '_cyth': func
+        _get_cythsafe_funcname(func) : func
         for func in set(func_list)
     }
     return dummy_cythonized_funcs

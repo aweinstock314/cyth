@@ -1,5 +1,7 @@
 """
 python -c "import doctest, cyth; print(doctest.testmod(cyth.cyth_helpers))"
+
+TODO: Change this file to cyth_manglers? Functions which mangle names?
 """
 from __future__ import absolute_import, division, print_function
 from os.path import splitext, split, join, relpath
@@ -56,6 +58,7 @@ def get_cyth_bench_path(py_fpath):
     cy_fpath = utool.unixpath(join(dpath, get_cyth_name(name) + '_bench.py'))
     return cy_fpath
 
+
 def get_cyth_pxd_path(py_fpath):
     """
     >>> py_fpath = '/foo/vtool/vtool/keypoint.py'
@@ -68,3 +71,7 @@ def get_cyth_pxd_path(py_fpath):
     assert ext == '.py', 'not a python file'
     cy_fpath = utool.unixpath(join(dpath, get_cyth_name(name) + '.pxd'))
     return cy_fpath
+
+
+def get_cyth_safe_funcname(pyth_funcname):
+    return pyth_funcname + '_cyth'
