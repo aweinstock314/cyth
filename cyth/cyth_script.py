@@ -24,7 +24,7 @@ import doctest
 import cyth  # NOQA
 from copy import deepcopy
 from cyth.cyth_decorators import MACRO_EXPANDERS_DICT
-import cyth.cyth_pragmas
+import cyth.cyth_macros
 BASE_CLASS = astor.codegen.SourceGenerator
 
 
@@ -58,7 +58,7 @@ class CythVisitor(BASE_CLASS):
         self.spig = SecondpassInformationGatherer(self.fpig)
         self.modules_to_cimport = []
         self.interface_lines = []  # generated for the pxd header
-        self.gensym = cyth.cyth_pragmas.make_gensym_function()
+        self.gensym = cyth.cyth_macros.make_gensym_function()
 
     def get_result(self):
         """ returns cythonized pyx text """

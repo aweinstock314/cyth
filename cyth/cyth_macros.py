@@ -1,5 +1,5 @@
 """
-python -c "import cyth, doctest; print(doctest.testmod(cyth.cyth_pragmas))"
+python -c "import cyth, doctest; print(doctest.testmod(cyth.cyth_macros))"
 """
 from __future__ import absolute_import, division, print_function
 import parse
@@ -63,7 +63,7 @@ def numpy_fancy_index_assign(gensym, line):
     Input is gaurenteed to be one numpy array assigning to another.
     Still in development. May break for complicated cases.
 
-    >>> from cyth.cyth_pragmas import *
+    >>> from cyth.cyth_macros import *
     >>> gensym = make_gensym_function()
     >>> line = '_iv21s = invVR_mats[:, 1, :, 2:42, ::-1, , 3:, :]'
     >>> line = '_iv21s = invVR_mats[:, 1, :]'
@@ -159,7 +159,7 @@ def numpy_fancy_index_assign1(gensym, line):
     Input is gaurenteed to be one numpy array assigning to another.
     Still in development. May break for complicated cases.
 
-    >>> from cyth.cyth_pragmas import *
+    >>> from cyth.cyth_macros import *
     >>> gensym = make_gensym_function()
     >>> line = '_iv21s = invVR_mats[:, 1, :]'
     >>> block1 = numpy_fancy_index_assign(gensym, '_iv11s = invVR_mats[:, 0, 0]')
