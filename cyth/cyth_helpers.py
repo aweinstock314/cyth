@@ -8,6 +8,8 @@ from os.path import splitext, split, join, relpath
 import utool
 import os
 
+rrr = utool.inject_reload_function(__name__, 'cyth_helpers')
+
 
 def get_py_module_name(py_fpath):
     relfpath = relpath(py_fpath, os.getcwd())
@@ -43,6 +45,19 @@ def get_cyth_path(py_fpath):
     assert ext == '.py', 'not a python file'
     cy_fpath = join(dpath, get_cyth_name(name) + '.pyx')
     return cy_fpath
+
+
+def get_c_path(cy_fpath):
+    """
+    >>> cy_fpath = '/foo/vtool/vtool/_linalg_cyth.pyx'
+    >>> print(cy_fpath)
+    /foo/vtool/vtool/_keypoint_cyth.pyx
+    """
+    dpath, fname = split(cy_fpath)
+    name, ext = splitext(fname)
+    assert ext == '.pyx', 'not a cython file'
+    c_fpath = join(dpath, name + '.c')
+    return c_fpath
 
 
 def get_cyth_bench_path(py_fpath):

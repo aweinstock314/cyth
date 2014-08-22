@@ -14,6 +14,7 @@ from six.moves import zip, map, filter
 from itertools import chain
 import utool
 import sys
+import os
 from os.path import isfile
 from cyth import cyth_helpers
 import ast
@@ -31,6 +32,8 @@ BASE_CLASS = astor.codegen.SourceGenerator
 # See astor/codegen.py for details
 # https://github.com/berkerpeksag/astor/blob/master/astor/codegen.py
 CYTHON_HTML = '--annotate' in sys.argv or '-a' in sys.argv
+CYTHON_MAKE_C = '--makec' in sys.argv
+CYTHON_BUILD = '--build' in sys.argv
 
 
 class CythVisitor(BASE_CLASS):
@@ -1028,7 +1031,10 @@ def parse_benchmarks(funcname, docstring, py_modname):
 
 
 def translate_fpath(py_fpath):
-    """ creates a cython pyx file from a python file with cyth tags """
+    """ creates a cython pyx file from a python file with cyth tags
+    >>> from cyth.cyth_script import *  # NOQA
+    >>> py_fpath = utool.unixpath('~/code/vtool/vtool/linalg.py')
+    """
     # If -a is given, generate cython html for each pyx file
     # Get cython pyx and benchmark output path
     cy_pyxpath = cyth_helpers.get_cyth_path(py_fpath)
@@ -1054,10 +1060,19 @@ def translate_fpath(py_fpath):
     utool.write_to(cy_pxdpath, pxd_text, verbose=False)
     utool.write_to(cy_benchpath, bench_text, verbose=False)
     if CYTHON_HTML:
-        import os
         print('[cyth.translate_fpath] generating annotation html')
         cython_exe = utool.get_cython_exe()
         os.system(cython_exe + ' -a ' + cy_pyxpath)
+    if CYTHON_MAKE_C:
+        print('[cyth.translate_fpath] generating cython c')
+        cython_exe = utool.get_cython_exe()
+        os.system(cython_exe + ' ' + cy_pyxpath)
+    if CYTHON_BUILD:
+        gcc_exe = 'gcc'
+        print('[cyth.translate_fpath] generating c library')
+        c_path = cyth_helpers.get_c_path(cy_pyxpath)
+        #C:\MinGW\bin\gcc.exe -w -Wall -m32 -lpython27 -IC:\Python27\Lib\site-packages\numpy\core\include -IC:\Python27\include -IC:\Python27\PC -IC:\Python27\Lib\site-packages\numpy\core\include -LC:\Python27\libs -o _linalg_cyth.pyd -c _linalg_cyth.c
+        os.system(gcc_exe + ' ' + c_path)
     return cy_benchpath
 
 
@@ -1078,7 +1093,6 @@ def translate(*paths):
         runbench_text = '\n'.join(['#!/bin/bash'] + cmd_list)
         utool.write_to('run_cyth_benchmarks.sh', runbench_text)
         #try:
-        import os
         os.chmod('run_cyth_benchmarks.sh', 33277)
         #except OSError:
         #    pass
