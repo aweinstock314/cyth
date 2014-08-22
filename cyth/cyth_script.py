@@ -1003,14 +1003,19 @@ def parse_benchmarks(funcname, docstring, py_modname):
             print("[bench.python] {funcname} time=%f seconds" % (pyth_time))
             print("[bench.cython] {funcname} time=%f seconds" % (cyth_time))
             time_delta = cyth_time - pyth_time
-            pcnt_change_wrt_cyth = (time_delta / pyth_time) * 100
+            #pcnt_change_wrt_pyth = (time_delta / pyth_time) * 100
+            #pcnt_change_wrt_cyth = (time_delta / cyth_time) * 100
+            pyth_per_cyth = (pyth_time / cyth_time) * 100
+            inv_cyth_per_pyth = 1 / (cyth_time / pyth_time) * 100
             nepers  = log(cyth_time / pyth_time)
             if time_delta < 0:
-                print('[bench.result] cython was %.1fx faster' % (-pcnt_change_wrt_cyth,))
+                print('[bench.result] cython was %.1f%% of the speed of python' % (inv_cyth_per_pyth,))
+                #print('[bench.result] cython was %.1fx faster' % (-pcnt_change_wrt_pyth,))
                 print('[bench.result] cython was %.1f nepers faster' % (-nepers,))
                 print('[bench.result] cython was faster by %f seconds' % -time_delta)
             else:
-                print('[bench.result] cython was %.1fx slower' % (pcnt_change_wrt_cyth,))
+                print('[bench.result] cython was %.1f%% of the speed of python' % (pyth_per_cyth,))
+                #print('[bench.result] cython was %.1fx slower' % (pcnt_change_wrt_pyth,))
                 print('[bench.result] cython was %.1f nepers slower' % (nepers,))
                 print('[bench.result] python was faster by %f seconds' % time_delta)
             pyth_call, cyth_call = tup
