@@ -616,6 +616,7 @@ class CythVisitor(BASE_CLASS):
             #cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)
             for s in cyth_def_body:
                 self.write('\n', s)
+            self.write('\n')
             self.indentation -= 1
             self.body(new_body)
         else:
