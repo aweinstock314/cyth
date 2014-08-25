@@ -132,8 +132,10 @@ def import_cyth_execstr(pyth_modname):
                 raise ImportError('no cyth')
             {cyth_block}
             CYTHONIZED = True
+            print('cyth is on in %s' % (__name__,))
         except ImportError:
             {pyth_block}
+            print('cyth is off in %s' % (__name__,))
             CYTHONIZED = False''').format(**locals()).strip('\n')
     #print(execstr)
     if cyth_args.CYTH_WRITE:
