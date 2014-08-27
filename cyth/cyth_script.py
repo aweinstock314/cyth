@@ -16,6 +16,7 @@ import os
 from os.path import isfile
 from cyth import cyth_helpers
 from cyth import cyth_parser
+from cyth import cyth_benchmarks
 import ast
 import astor
 BASE_CLASS = astor.codegen.SourceGenerator
@@ -86,12 +87,14 @@ def translate(*paths):
                 cy_bench_list.append(cy_bench)
 
     if len(cy_bench_list) > 0:
-        # write script to run all cyth benchmarks
-        cmd_list = ['python ' + bench for bench in cy_bench_list]
-        runbench_text = '\n'.join(['#!/bin/bash'] + cmd_list)
-        utool.write_to('run_cyth_benchmarks.sh', runbench_text + ' $*')
+        runbench_shtext = cyth_benchmarks.build_runbench_shell_text(cy_bench_list)
+        runbench_pytext = cyth_benchmarks.build_runbench_pyth_text(cy_bench_list)
+
+        utool.write_to('run_cyth_benchmarks.sh', runbench_shtext)
+        utool.write_to('run_cyth_benchmarks.py', runbench_pytext)
         #try:
         os.chmod('run_cyth_benchmarks.sh', 33277)
+        os.chmod('run_cyth_benchmarks.py', 33277)
         #except OSError:
         #    pass
 
