@@ -851,6 +851,13 @@ class SecondpassInformationGatherer(ast.NodeVisitor):
             if gettup(node) in tup_iter:
                 self.globals_used[node] = True
 
+    def visit_Expr(self, node):
+        if isinstance(node.value, ast.Str):
+            for global_name in self.fpig.global_names:
+                # for cyth strings, we don't yet have a good parser, so use
+                #  substring as a conservative estimate
+                self.globals_used[global_name] = self.globals_used.get(global_name, False) or (node.value.s.find(global_name.id) != -1)
+
 
 class CallRecorder(ast.NodeVisitor):
     def __init__(self):
