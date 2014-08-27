@@ -7,6 +7,7 @@ from __future__ import absolute_import, division, print_function
 from os.path import splitext, split, join, relpath
 import utool
 import os
+import astor
 
 rrr = utool.inject_reload_function(__name__, 'cyth_helpers')
 
@@ -90,3 +91,9 @@ def get_cyth_pxd_path(py_fpath):
 
 def get_cyth_safe_funcname(pyth_funcname):
     return pyth_funcname + '_cyth'
+
+
+def ast_to_sourcecode(node):
+    generator = astor.codegen.SourceGenerator(' ' * 4)
+    generator.visit(node)
+    return ''.join(generator.result)
