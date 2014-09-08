@@ -52,3 +52,13 @@ coverage.xml
 # Sphinx documentation
 docs/_build/
 
+# Cyth
+*_cyth.pyx
+*_cyth.pxd
+*_cyth.pyd
+*_cyth.so
+*_cyth.c
+*_cyth.html
+*_cyth_bench.py
+run_cyth_benchmarks.sh
+run_cyth_benchmarks.py
