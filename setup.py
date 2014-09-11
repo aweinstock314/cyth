@@ -8,6 +8,8 @@ import six
 INSTALL_REQUIRES = [
     'Cython >= 0.20.2',
     'numpy >= 1.8.0',
+    'parse',
+    'astor',
     #'cv2',  # no pipi index
 ]
 
