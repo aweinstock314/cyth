@@ -68,7 +68,8 @@ def get_bench_text_fmt():
 
 
     if __name__ == '__main__':
-        run_all_benchmarks(1000)
+        iterations = utool.get_arg(('--iterations', '-n'), type_=int, default=100)
+        run_all_benchmarks(iterations)
     '''
     bench_text_fmt = utool.unindent(bench_text_fmt_).strip('\n')
     return bench_text_fmt
@@ -247,6 +248,7 @@ def build_runbench_pyth_text(cy_bench_list):
 
     if __name__ == '__main__':
         all_results = []
+        iterations = utool.get_arg(('--iterations', '-n'), type_=int, default=100)
 
         # Run the benchmarks
         {bench_runline_text}
@@ -277,7 +279,7 @@ def build_runbench_pyth_text(cy_bench_list):
     bench_modnames = list(map(bench_fpath_to_modname, cy_bench_list))
 
     bench_imports = ['import ' + bench_modname for bench_modname in bench_modnames]
-    runline_fmt = 'all_results.extend({bench_modname}.run_all_benchmarks(1000))'
+    runline_fmt = 'all_results.extend({bench_modname}.run_all_benchmarks(iterations))'
     bench_runlines = [runline_fmt.format(bench_modname=bench_modname)
                       for bench_modname in bench_modnames]
     bench_import_text = '\n'.join(bench_imports)

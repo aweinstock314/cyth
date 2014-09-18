@@ -90,10 +90,10 @@ def translate(*paths):
         runbench_shtext = cyth_benchmarks.build_runbench_shell_text(cy_bench_list)
         runbench_pytext = cyth_benchmarks.build_runbench_pyth_text(cy_bench_list)
 
-        utool.write_to('run_cyth_benchmarks.sh', runbench_shtext)
+        utool.write_to('_old_run_cyth_benchmarks.sh', runbench_shtext)
         utool.write_to('run_cyth_benchmarks.py', runbench_pytext)
         #try:
-        os.chmod('run_cyth_benchmarks.sh', 33277)
+        os.chmod('_old_run_cyth_benchmarks.sh', 33277)
         os.chmod('run_cyth_benchmarks.py', 33277)
         #except OSError:
         #    pass
