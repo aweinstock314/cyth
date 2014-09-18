@@ -522,7 +522,7 @@ class CythVisitor(BASE_CLASS):
                 docstr = stmt.value.s
                 if first_docstr is None:
                     first_docstr = docstr
-                has_markup = has_markup or docstr.find('CYTH') != -1
+                has_markup = has_markup or docstr.find('#if CYTH') != -1
                 #actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)
                 (source_lines, cyth_mode, collect_macro_input,
                  new_param_typedict, new_bodyvars_typedict,
