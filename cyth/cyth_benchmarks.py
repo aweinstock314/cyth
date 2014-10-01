@@ -273,7 +273,7 @@ def build_runbench_pyth_text(cy_bench_list):
         bench_upath = utool.unixpath(bench)
         bench_relpath = relpath(bench_upath, os.getcwd())
         bench_relname, _ = splitext(bench_relpath)
-        bench_modname = bench_relname.replace('/', '.')
+        bench_modname = bench_relname.replace('\\', '/').replace('/', '.')
         return bench_modname
 
     bench_modnames = list(map(bench_fpath_to_modname, cy_bench_list))
