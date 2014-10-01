@@ -68,7 +68,7 @@ def get_bench_text_fmt():
 
 
     if __name__ == '__main__':
-        iterations = utool.get_arg(('--iterations', '-n'), type_=int, default=100)
+        iterations = utool.get_argval(('--iterations', '-n'), type_=int, default=100)
         run_all_benchmarks(iterations)
     '''
     bench_text_fmt = utool.unindent(bench_text_fmt_).strip('\n')
@@ -244,11 +244,11 @@ def build_runbench_pyth_text(cy_bench_list):
     import utool
     {bench_import_text}
 
-    SORTBY = utool.get_arg('--sortby', str, 'python')
+    SORTBY = utool.get_argval('--sortby', str, 'python')
 
     if __name__ == '__main__':
         all_results = []
-        iterations = utool.get_arg(('--iterations', '-n'), type_=int, default=100)
+        iterations = utool.get_argval(('--iterations', '-n'), type_=int, default=100)
 
         # Run the benchmarks
         {bench_runline_text}
