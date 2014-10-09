@@ -1,0 +1,338 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>cyth.cyth_importer &mdash; cyth 1.0.0.dev1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.0.dev1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="cyth 1.0.0.dev1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for cyth.cyth_importer</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">python -c &quot;import doctest, cyth; print(doctest.testmod(cyth.cyth_importer))&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">from</span> <span class="nn">cyth</span> <span class="kn">import</span> <span class="n">cyth_args</span>
+<span class="kn">from</span> <span class="nn">cyth</span> <span class="kn">import</span> <span class="n">cyth_helpers</span>
+<span class="kn">from</span> <span class="nn">os.path</span> <span class="kn">import</span> <span class="n">splitext</span><span class="p">,</span> <span class="n">basename</span>
+<span class="kn">from</span> <span class="nn">utool.util_six</span> <span class="kn">import</span> <span class="n">get_funcdoc</span><span class="p">,</span> <span class="n">get_funcname</span><span class="p">,</span> <span class="n">get_funcglobals</span>  <span class="c"># NOQA</span>
+<span class="kn">import</span> <span class="nn">imp</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">utool</span>
+
+
+<div class="viewcode-block" id="pkg_submodule_split"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.pkg_submodule_split">[docs]</a><span class="k">def</span> <span class="nf">pkg_submodule_split</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">):</span>
+    <span class="n">cyth_modname</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_name</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+    <span class="c"># Break module name into package and submodule</span>
+    <span class="k">if</span> <span class="n">cyth_modname</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)</span> <span class="o">&gt;</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="n">cyth_modname</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)</span>
+        <span class="n">submod</span> <span class="o">=</span> <span class="n">components</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">fromlist</span> <span class="o">=</span> <span class="p">[</span><span class="n">submod</span><span class="p">]</span>
+        <span class="n">pkgname</span> <span class="o">=</span> <span class="s">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">components</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">pkgname</span> <span class="o">=</span> <span class="n">cyth_modname</span>
+        <span class="n">fromlist</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">return</span> <span class="n">pkgname</span><span class="p">,</span> <span class="n">fromlist</span><span class="p">,</span> <span class="n">cyth_modname</span>
+
+</div>
+<div class="viewcode-block" id="rectify_modname"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.rectify_modname">[docs]</a><span class="k">def</span> <span class="nf">rectify_modname</span><span class="p">(</span><span class="n">pyth_modname_</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">pyth_modname_</span> <span class="o">!=</span> <span class="s">&#39;__main__&#39;</span><span class="p">:</span>
+        <span class="n">pyth_modname</span> <span class="o">=</span> <span class="n">pyth_modname_</span>
+        <span class="k">return</span> <span class="n">pyth_modname</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c"># http://stackoverflow.com/questions/606561/how-to-get-filename-of-the-main-module-in-python</span>
+        <span class="k">def</span> <span class="nf">main_is_frozen</span><span class="p">():</span>
+            <span class="k">return</span> <span class="p">(</span><span class="nb">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s">&quot;frozen&quot;</span><span class="p">)</span> <span class="ow">or</span>  <span class="c"># new py2exe</span>
+                    <span class="nb">hasattr</span><span class="p">(</span><span class="n">sys</span><span class="p">,</span> <span class="s">&quot;importers&quot;</span><span class="p">)</span>  <span class="c"># old py2exe</span>
+                    <span class="ow">or</span> <span class="n">imp</span><span class="o">.</span><span class="n">is_frozen</span><span class="p">(</span><span class="s">&quot;__main__&quot;</span><span class="p">))</span>  <span class="c"># tools/freeze</span>
+
+        <span class="k">def</span> <span class="nf">get_main_name</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">main_is_frozen</span><span class="p">():</span>
+                <span class="c"># print &#39;Running from path&#39;, os.path.dirname(sys.executable)</span>
+                <span class="k">return</span> <span class="n">splitext</span><span class="p">(</span><span class="n">basename</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">executable</span><span class="p">))[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">return</span> <span class="n">splitext</span><span class="p">(</span><span class="n">basename</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">0</span><span class="p">]))[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="c"># find path to where we are running</span>
+        <span class="n">pyth_modname</span> <span class="o">=</span> <span class="n">get_main_name</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">pyth_modname</span>
+
+        <span class="c"># OPTIONAL:</span>
+        <span class="c"># add the sibling &#39;lib&#39; dir to our module search path</span>
+        <span class="c">#lib_path = os.path.join(get_main_dir(), os.path.pardir, &#39;lib&#39;)</span>
+        <span class="c">#sys.path.insert(0, lib_path)</span>
+
+        <span class="c"># OPTIONAL:</span>
+        <span class="c"># use info to find relative data files in &#39;data&#39; subdir</span>
+        <span class="c">#datafile1 = os.path.join(get_main_dir(), &#39;data&#39;, &#39;file1&#39;)</span>
+
+</div>
+<div class="viewcode-block" id="import_cyth_dict"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.import_cyth_dict">[docs]</a><span class="k">def</span> <span class="nf">import_cyth_dict</span><span class="p">(</span><span class="n">pyth_modname_</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    #&gt;&gt;&gt; from cyth import *  # NOQA</span>
+<span class="sd">    &gt;&gt;&gt; from cyth.cyth_importer import *  # NOQA</span>
+<span class="sd">    &gt;&gt;&gt; pyth_modname = &#39;vtool.keypoint&#39;</span>
+<span class="sd">    &gt;&gt;&gt; import_cyth(pyth_modname)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">pyth_modname</span> <span class="o">=</span> <span class="n">rectify_modname</span><span class="p">(</span><span class="n">pyth_modname_</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+
+        <span class="k">print</span><span class="p">(</span><span class="s">&#39;[import_cyth] pyth_modname=</span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">pyth_modname</span><span class="p">,))</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">cyth_args</span><span class="o">.</span><span class="n">WITH_CYTH</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&#39;[import_cyth] NO_CYTH&#39;</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span><span class="s">&#39;NO_CYTH&#39;</span><span class="p">)</span>
+        <span class="n">cythonized_funcs</span> <span class="o">=</span> <span class="n">get_cythonized_funcs</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cythonized_funcs</span>
+        <span class="c"># TODO: Get list of cythonized funcs and return them</span>
+        <span class="c">#from .keypoint_cython import (get_invVR_mats_sqrd_scale_float64,)  # NOQA</span>
+        <span class="c">#get_invVR_mats_sqrd_scale_cython = get_invVR_mats_sqrd_scale_float64</span>
+    <span class="k">except</span> <span class="ne">ImportError</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>  <span class="c"># NOQA</span>
+        <span class="k">raise</span>
+        <span class="n">dummy_cythonized_funcs</span> <span class="o">=</span> <span class="n">import_cyth_default</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">dummy_cythonized_funcs</span>
+
+</div>
+<div class="viewcode-block" id="get_cythonized_funcs"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.get_cythonized_funcs">[docs]</a><span class="k">def</span> <span class="nf">get_cythonized_funcs</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">):</span>
+    <span class="n">pkgname</span><span class="p">,</span> <span class="n">fromlist</span><span class="p">,</span> <span class="n">cyth_modname</span> <span class="o">=</span> <span class="n">pkg_submodule_split</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+    <span class="n">cyth_mod</span> <span class="o">=</span> <span class="nb">__import__</span><span class="p">(</span><span class="n">cyth_modname</span><span class="p">,</span> <span class="nb">globals</span><span class="p">(),</span> <span class="nb">locals</span><span class="p">(),</span> <span class="n">fromlist</span><span class="o">=</span><span class="n">fromlist</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">mod_dict</span> <span class="o">=</span> <span class="n">cyth_mod</span><span class="o">.</span><span class="n">__dict__</span>
+    <span class="n">cythonized_funcs</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="c">#print(&#39;[import_cyth] mod_dict=%s&#39; % (utool.dict_str(mod_dict),))</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">mod_dict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">valstr</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="c"># FIXME: might change in python3</span>
+        <span class="k">if</span> <span class="n">valstr</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;&lt;built-in function &#39;</span><span class="p">):</span>
+            <span class="k">assert</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&quot;_&quot;</span><span class="p">)</span> <span class="ow">and</span> <span class="n">key</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&quot;_cyth&quot;</span><span class="p">),</span> <span class="n">key</span>
+            <span class="n">cythonized_funcs</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="n">cythonized_funcs</span><span class="p">[</span><span class="n">key</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span> <span class="o">=</span> <span class="n">val</span>
+    <span class="c">#print(utool.dict_str(cythonized_funcs))</span>
+    <span class="k">return</span> <span class="n">cythonized_funcs</span>
+
+</div>
+<div class="viewcode-block" id="import_cyth_execstr"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.import_cyth_execstr">[docs]</a><span class="k">def</span> <span class="nf">import_cyth_execstr</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    &gt;&gt;&gt; from cyth.cyth_importer import *  # NOQA</span>
+<span class="sd">    &gt;&gt;&gt; from vtool import trig  # NOQA</span>
+<span class="sd">    &gt;&gt;&gt; pyth_modname = &#39;vtool.trig&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">dummy_cythonized_funcs</span> <span class="o">=</span> <span class="n">import_cyth_default</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+    <span class="n">pyth_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">funcname</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">dummy_cythonized_funcs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">pyth_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">funcname</span> <span class="o">+</span> <span class="s">&#39; = &#39;</span> <span class="o">+</span> <span class="n">get_funcname</span><span class="p">(</span><span class="n">func</span><span class="p">))</span>
+    <span class="n">pyth_list2</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">align_lines</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">pyth_list</span><span class="p">),</span> <span class="s">&#39;=&#39;</span><span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">cyth_list</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">pkgname</span><span class="p">,</span> <span class="n">fromlist</span><span class="p">,</span> <span class="n">cyth_modname</span> <span class="o">=</span> <span class="n">pkg_submodule_split</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+        <span class="n">cythonized_funcs</span> <span class="o">=</span> <span class="n">get_cythonized_funcs</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">funcname</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">cythonized_funcs</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">cyth_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">funcname</span> <span class="o">+</span> <span class="s">&#39; = &#39;</span> <span class="o">+</span> <span class="n">cyth_modname</span> <span class="o">+</span> <span class="s">&#39;.&#39;</span> <span class="o">+</span> <span class="n">func</span><span class="o">.</span><span class="n">__name__</span><span class="p">)</span>
+        <span class="n">cyth_list2</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;import &#39;</span> <span class="o">+</span> <span class="n">cyth_modname</span><span class="p">]</span> <span class="o">+</span> <span class="n">utool</span><span class="o">.</span><span class="n">align_lines</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">cyth_list</span><span class="p">),</span> <span class="s">&#39;=&#39;</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">cyth_list2</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;raise ImportError(&quot;no cyth&quot;)&#39;</span><span class="p">]</span>
+    <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+        <span class="n">cyth_list2</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;raise ImportError(&quot;cyth import error: </span><span class="si">%s</span><span class="s">&quot;)&#39;</span> <span class="o">%</span> <span class="nb">str</span><span class="p">(</span><span class="n">ex</span><span class="p">)]</span>
+
+    <span class="n">cyth_block</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">indentjoin</span><span class="p">(</span><span class="n">cyth_list2</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">pyth_block</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">indentjoin</span><span class="p">(</span><span class="n">pyth_list2</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">execstr</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">unindent</span><span class="p">(</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        try:</span>
+<span class="sd">            if not cyth.WITH_CYTH:</span>
+<span class="sd">                raise ImportError(&#39;no cyth&#39;)</span>
+<span class="sd">            {cyth_block}</span>
+<span class="sd">            CYTHONIZED = True</span>
+<span class="sd">            # print(&#39;cyth is on in %s&#39; % (__name__,))</span>
+<span class="sd">        except ImportError:</span>
+<span class="sd">            {pyth_block}</span>
+<span class="sd">            # print(&#39;cyth is off in %s&#39; % (__name__,))</span>
+<span class="sd">            CYTHONIZED = False&#39;&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="o">**</span><span class="nb">locals</span><span class="p">())</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+    <span class="c">#print(execstr)</span>
+    <span class="k">if</span> <span class="n">cyth_args</span><span class="o">.</span><span class="n">CYTH_WRITE</span><span class="p">:</span>
+        <span class="n">write_explicit</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">,</span> <span class="n">execstr</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">execstr</span>
+
+</div>
+<div class="viewcode-block" id="write_explicit"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.write_explicit">[docs]</a><span class="k">def</span> <span class="nf">write_explicit</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">,</span> <span class="n">execstr</span><span class="p">):</span>
+    <span class="kn">import</span> <span class="nn">multiprocessing</span>
+    <span class="n">is_main_proc</span> <span class="o">=</span> <span class="n">multiprocessing</span><span class="o">.</span><span class="n">current_process</span><span class="p">()</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s">&#39;MainProcess&#39;</span>
+    <span class="k">if</span> <span class="n">is_main_proc</span><span class="p">:</span>
+        <span class="kn">from</span> <span class="nn">utool</span> <span class="kn">import</span> <span class="n">util_str</span>
+        <span class="kn">from</span> <span class="nn">os.path</span> <span class="kn">import</span> <span class="n">exists</span>
+        <span class="n">new_else</span> <span class="o">=</span> <span class="n">util_str</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span><span class="n">execstr</span><span class="p">)</span>
+        <span class="c">#print(new_else)</span>
+        <span class="c"># Get path to init file so we can overwrite it</span>
+        <span class="n">pyth_fpath</span> <span class="o">=</span> <span class="n">pyth_modname</span>
+        <span class="n">module</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">pyth_modname</span><span class="p">]</span>  <span class="c"># module currently being imported</span>
+        <span class="n">modpath</span><span class="p">,</span> <span class="n">ext</span> <span class="o">=</span> <span class="n">splitext</span><span class="p">(</span><span class="n">module</span><span class="o">.</span><span class="n">__file__</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">ext</span> <span class="o">==</span> <span class="s">&#39;.pyc&#39;</span> <span class="ow">or</span> <span class="n">ext</span> <span class="o">==</span> <span class="s">&#39;.py&#39;</span>
+        <span class="n">pyth_fpath</span> <span class="o">=</span> <span class="n">modpath</span> <span class="o">+</span> <span class="s">&#39;.py&#39;</span>
+        <span class="c">#import IPython</span>
+        <span class="c">#IPython.embed()</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&quot;attempting to update: </span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">pyth_fpath</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">exists</span><span class="p">(</span><span class="n">pyth_fpath</span><span class="p">)</span>
+        <span class="n">new_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">broken</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">closed</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">start_sentinal</span> <span class="o">=</span> <span class="s">&#39;    # &lt;AUTOGEN_CYTH&gt;&#39;</span>
+        <span class="n">end_sentinal</span>   <span class="o">=</span> <span class="s">&#39;    # &lt;/AUTOGEN_CYTH&gt;&#39;</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pyth_fpath</span><span class="p">,</span> <span class="s">&#39;r&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file_</span><span class="p">:</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">file_</span><span class="o">.</span><span class="n">readlines</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">closed</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">broken</span><span class="p">:</span>
+                    <span class="c"># Append lines until you see start_sentinal</span>
+                    <span class="n">new_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">start_sentinal</span><span class="p">):</span>
+                        <span class="n">indent</span> <span class="o">=</span> <span class="s">&#39;    &#39;</span>
+                        <span class="n">help_line</span> <span class="o">=</span> <span class="s">&#39;# Regen command: python -c &quot;import </span><span class="si">%s</span><span class="s">&quot; --cyth-write</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">pyth_modname</span>
+                        <span class="n">new_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indent</span> <span class="o">+</span> <span class="n">help_line</span><span class="p">)</span>
+                        <span class="n">new_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">new_else</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+                        <span class="n">broken</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="ow">not</span> <span class="n">closed</span> <span class="ow">and</span> <span class="n">broken</span><span class="p">:</span>
+                    <span class="c"># Skip lines between sentinals</span>
+                    <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="n">end_sentinal</span><span class="p">):</span>
+                        <span class="n">new_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">end_sentinal</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+                        <span class="n">closed</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">elif</span> <span class="n">closed</span> <span class="ow">and</span> <span class="n">broken</span><span class="p">:</span>
+                    <span class="c"># Append lines after sentinals</span>
+                    <span class="n">new_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s">&#39;closed before opening cyth tags&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">broken</span> <span class="ow">and</span> <span class="n">closed</span><span class="p">:</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;writing updated file: </span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">pyth_fpath</span><span class="p">)</span>
+            <span class="n">new_text</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new_lines</span><span class="p">)</span>
+            <span class="c">#print(new_text)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">pyth_fpath</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">file_</span><span class="p">:</span>
+                <span class="n">file_</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">new_text</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">default_cyth_block</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">unindent</span><span class="p">(</span><span class="s">&#39;&#39;&#39;</span>
+<span class="s">            import cyth</span>
+<span class="s">            if cyth.DYNAMIC:</span>
+<span class="s">                exec(cyth.import_cyth_execstr(__name__))</span>
+<span class="s">            else:</span>
+<span class="s">                # &lt;AUTOGEN_CYTH&gt;</span>
+<span class="s">                # &lt;/AUTOGEN_CYTH&gt;</span>
+<span class="s">                pass</span>
+<span class="s">            &#39;&#39;&#39;</span><span class="p">)</span>
+            <span class="n">default_cyth_block</span>  <span class="c"># NOQA</span>
+            <span class="k">print</span><span class="p">(</span><span class="s">&quot;no write hook for file: </span><span class="si">%r</span><span class="s">&quot;</span> <span class="o">%</span> <span class="n">pyth_fpath</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="docstr_has_cythtags"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.docstr_has_cythtags">[docs]</a><span class="k">def</span> <span class="nf">docstr_has_cythtags</span><span class="p">(</span><span class="n">docstr</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">docstr</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">False</span>
+    <span class="k">if</span> <span class="s">&#39;#if CYTH&#39;</span> <span class="ow">in</span> <span class="n">docstr</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">if</span> <span class="s">&#39;#CYTH_INLINE&#39;</span> <span class="ow">in</span> <span class="n">docstr</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+
+</div>
+<div class="viewcode-block" id="import_cyth_default"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_importer.import_cyth_default">[docs]</a><span class="k">def</span> <span class="nf">import_cyth_default</span><span class="p">(</span><span class="n">pyth_modname</span><span class="p">):</span>
+    <span class="c">#import IPython</span>
+    <span class="c">#IPython.embed()</span>
+    <span class="n">module</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">modules</span><span class="p">[</span><span class="n">pyth_modname</span><span class="p">]</span>  <span class="c"># module currently being imported</span>
+    <span class="n">func_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">module</span><span class="o">.</span><span class="n">__dict__</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">docstr</span> <span class="o">=</span> <span class="n">get_funcdoc</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="n">func</span> <span class="o">=</span> <span class="n">val</span>
+            <span class="k">if</span> <span class="n">docstr_has_cythtags</span><span class="p">(</span><span class="n">docstr</span><span class="p">):</span>
+                <span class="n">func_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+                    <span class="c">#print(func)</span>
+                    <span class="c">#print(key)</span>
+                    <span class="c">#func2 = func</span>
+        <span class="k">except</span> <span class="ne">AttributeError</span><span class="p">:</span>
+            <span class="k">pass</span>
+    <span class="c"># default to python</span>
+    <span class="k">def</span> <span class="nf">_get_cythsafe_funcname</span><span class="p">(</span><span class="n">func</span><span class="p">):</span>
+        <span class="n">pyth_funcname</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">util_six</span><span class="o">.</span><span class="n">get_funcname</span><span class="p">(</span><span class="n">func</span><span class="p">)</span>
+        <span class="n">cythsafe_funcname</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_safe_funcname</span><span class="p">(</span><span class="n">pyth_funcname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cythsafe_funcname</span>
+
+    <span class="n">dummy_cythonized_funcs</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">_get_cythsafe_funcname</span><span class="p">(</span><span class="n">func</span><span class="p">)</span> <span class="p">:</span> <span class="n">func</span>
+        <span class="k">for</span> <span class="n">func</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="n">func_list</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="n">dummy_cythonized_funcs</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Jon Crall.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>

@@ -1,0 +1,939 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>cyth.cyth_parser &mdash; cyth 1.0.0.dev1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.0.dev1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="cyth 1.0.0.dev1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for cyth.cyth_parser</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">#python -c &quot;import cyth, doctest; print(doctest.testmod(cyth.cyth_parser))&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">six</span>
+<span class="kn">from</span> <span class="nn">six.moves</span> <span class="kn">import</span> <span class="nb">zip</span><span class="p">,</span> <span class="nb">map</span><span class="p">,</span> <span class="nb">filter</span>
+<span class="kn">from</span> <span class="nn">itertools</span> <span class="kn">import</span> <span class="n">chain</span>
+<span class="kn">import</span> <span class="nn">utool</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">from</span> <span class="nn">cyth</span> <span class="kn">import</span> <span class="n">cyth_helpers</span>
+<span class="kn">import</span> <span class="nn">ast</span>
+<span class="c">#import codegen  # NOQA</span>
+<span class="kn">import</span> <span class="nn">astor</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">import</span> <span class="nn">cyth</span>  <span class="c"># NOQA</span>
+<span class="kn">from</span> <span class="nn">copy</span> <span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span> <span class="nn">cyth.cyth_decorators</span> <span class="kn">import</span> <span class="n">MACRO_EXPANDERS_DICT</span>
+<span class="kn">from</span> <span class="nn">cyth</span> <span class="kn">import</span> <span class="n">cyth_benchmarks</span>
+<span class="kn">import</span> <span class="nn">cyth.cyth_macros</span>
+<span class="n">BASE_CLASS</span> <span class="o">=</span> <span class="n">astor</span><span class="o">.</span><span class="n">codegen</span><span class="o">.</span><span class="n">SourceGenerator</span>
+
+
+<div class="viewcode-block" id="CythVisitor"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor">[docs]</a><span class="k">class</span> <span class="nc">CythVisitor</span><span class="p">(</span><span class="n">BASE_CLASS</span><span class="p">):</span>
+    <span class="n">indent_level</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">emit</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">indent_with</span><span class="o">=</span><span class="s">&#39; &#39;</span> <span class="o">*</span> <span class="mi">4</span><span class="p">,</span> <span class="n">add_line_information</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span>
+                 <span class="n">py_modname</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="nb">super</span><span class="p">(</span><span class="n">CythVisitor</span><span class="p">,</span> <span class="bp">self</span><span class="p">)</span><span class="o">.</span><span class="n">__init__</span><span class="p">(</span><span class="n">indent_with</span><span class="p">,</span> <span class="n">add_line_information</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benchmark_names</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">benchmark_codes</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">py_modname</span> <span class="o">=</span> <span class="n">py_modname</span>
+        <span class="c">#print(&#39;in module &#39;, py_modname)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imported_modules</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">imported_functions</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="c">#self.all_funcalls = []</span>
+        <span class="c">#self.imports_with_usemaps = {}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">import_lines</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;cimport cython&#39;</span><span class="p">,</span> <span class="s">&#39;import cython&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cimport_whitelist</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;numpy&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cimport_blacklist</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;numpy.core.umath_tests&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">import_from_blacklist</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;range&#39;</span><span class="p">,</span> <span class="s">&#39;map&#39;</span><span class="p">,</span> <span class="s">&#39;zip&#39;</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">cythonized_funcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">plain_funcs</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span> <span class="o">=</span> <span class="n">FirstpassInformationGatherer</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spig</span> <span class="o">=</span> <span class="n">SecondpassInformationGatherer</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fpig</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">modules_to_cimport</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">interface_lines</span> <span class="o">=</span> <span class="p">[]</span>  <span class="c"># generated for the pxd header</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gensym</span> <span class="o">=</span> <span class="n">cyth</span><span class="o">.</span><span class="n">cyth_macros</span><span class="o">.</span><span class="n">make_gensym_function</span><span class="p">()</span>
+
+<div class="viewcode-block" id="CythVisitor.get_result"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.get_result">[docs]</a>    <span class="k">def</span> <span class="nf">get_result</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        returns cythonized pyx text resulting from parsing the py file with cyth</span>
+<span class="sd">        markups</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">cyth_text</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">import_lines</span><span class="p">)</span> <span class="o">+</span>
+            <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span>
+            <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">result</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">pxd_text</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;cimport numpy as np</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">interface_lines</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">cyth_text</span><span class="p">,</span> <span class="n">pxd_text</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.process_args"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.process_args">[docs]</a>    <span class="k">def</span> <span class="nf">process_args</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">vararg</span><span class="p">,</span> <span class="n">kwarg</span><span class="p">,</span> <span class="n">defaults</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="n">processed_argslist</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">vararg</span><span class="p">:</span>
+            <span class="n">processed_argslist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;*</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">vararg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwarg</span><span class="p">:</span>
+            <span class="n">processed_argslist</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;**</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="n">kwarg</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">defaults</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+            <span class="n">first_non_default</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">defaults</span><span class="p">)</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">ix</span><span class="p">,</span> <span class="n">de</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">defaults</span><span class="p">):</span>
+                <span class="n">processed_argslist</span><span class="p">[</span><span class="n">first_non_default</span> <span class="o">+</span> <span class="n">ix</span><span class="p">]</span> <span class="o">+=</span> <span class="s">&#39;=</span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">defaults</span><span class="p">[</span><span class="n">ix</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">processed_argslist</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.signature"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.signature">[docs]</a>    <span class="k">def</span> <span class="nf">signature</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">typedict</span><span class="o">=</span><span class="p">{}):</span>
+        <span class="c"># remove type declarations that are &#39;used up&#39; in the function&#39;s</span>
+        <span class="c"># call signature, to avoid duplicating them in the body</span>
+        <span class="n">nonsig_typedict</span> <span class="o">=</span> <span class="n">typedict</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="n">want_comma</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">def</span> <span class="nf">write_comma</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">want_comma</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;, &#39;</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">want_comma</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">True</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">loop_args</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">defaults</span><span class="p">):</span>
+            <span class="n">padding</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">args</span><span class="p">)</span> <span class="o">-</span> <span class="nb">len</span><span class="p">(</span><span class="n">defaults</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">arg</span><span class="p">,</span> <span class="n">default</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">args</span><span class="p">,</span> <span class="n">padding</span> <span class="o">+</span> <span class="n">defaults</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">arg</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="n">typedict</span><span class="p">:</span>
+                    <span class="n">arg_</span> <span class="o">=</span> <span class="n">typedict</span><span class="p">[</span><span class="n">arg</span><span class="o">.</span><span class="n">id</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39; &#39;</span> <span class="o">+</span> <span class="n">arg</span><span class="o">.</span><span class="n">id</span>
+                    <span class="n">nonsig_typedict</span><span class="o">.</span><span class="n">pop</span><span class="p">(</span><span class="n">arg</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">arg_</span> <span class="o">=</span> <span class="n">arg</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">write_comma</span><span class="p">,</span> <span class="n">arg_</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">conditional_write</span><span class="p">(</span><span class="s">&#39;=&#39;</span><span class="p">,</span> <span class="n">default</span><span class="p">)</span>
+
+        <span class="n">loop_args</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">defaults</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conditional_write</span><span class="p">(</span><span class="n">write_comma</span><span class="p">,</span> <span class="s">&#39;*&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">vararg</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">conditional_write</span><span class="p">(</span><span class="n">write_comma</span><span class="p">,</span> <span class="s">&#39;**&#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">kwarg</span><span class="p">)</span>
+
+        <span class="n">kwonlyargs</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="s">&#39;kwonlyargs&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">kwonlyargs</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">vararg</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">write_comma</span><span class="p">,</span> <span class="s">&#39;*&#39;</span><span class="p">)</span>
+            <span class="n">loop_args</span><span class="p">(</span><span class="n">kwonlyargs</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">kw_defaults</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">nonsig_typedict</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.parse_cythdef"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.parse_cythdef">[docs]</a>    <span class="k">def</span> <span class="nf">parse_cythdef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">cyth_def</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Hacky string manipulation parsing &quot;&quot;&quot;</span>
+        <span class="c">#ast.literal_eval(utool.unindent(cyth_def))</span>
+        <span class="n">typedict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">cdef_mode</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">current_indent</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">line_</span> <span class="ow">in</span> <span class="n">cyth_def</span><span class="o">.</span><span class="n">splitlines</span><span class="p">():</span>
+            <span class="n">indent_level</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">get_indentation</span><span class="p">(</span><span class="n">line_</span><span class="p">)</span>
+            <span class="c"># Check indentation</span>
+            <span class="k">if</span> <span class="n">indent_level</span> <span class="o">&gt;</span> <span class="n">current_indent</span><span class="p">:</span>
+                <span class="n">current_indent</span> <span class="o">=</span> <span class="n">indent_level</span>
+            <span class="k">elif</span> <span class="n">indent_level</span> <span class="o">&gt;</span> <span class="n">current_indent</span><span class="p">:</span>
+                <span class="n">current_indent</span> <span class="o">=</span> <span class="n">indent_level</span>
+                <span class="n">cdef_mode</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">line</span> <span class="o">=</span> <span class="n">line_</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;#&#39;</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">line</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="c"># parse cdef</span>
+            <span class="k">if</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;cdef:&#39;</span><span class="p">):</span>
+                <span class="n">cdef_mode</span> <span class="o">=</span> <span class="bp">True</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">cdef_mode</span> <span class="ow">or</span> <span class="n">line</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;cdef &#39;</span><span class="p">):</span>
+                <span class="k">def</span> <span class="nf">parse_cdef_line</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+                    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">                    line = &#39;np.array[float, ndims=2] x, y, z&#39;</span>
+<span class="sd">                    # todo put in better line parsing</span>
+<span class="sd">                    # allow for cdef</span>
+<span class="sd">                    type_ = []</span>
+<span class="sd">                    lbrackets = 0</span>
+<span class="sd">                    for sub in line.split(&#39;,&#39;):</span>
+<span class="sd">                        sub</span>
+<span class="sd">                    pass</span>
+<span class="sd">                    &quot;&quot;&quot;</span>
+                <span class="n">assign_str</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;cdef &#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span>
+                <span class="n">pos</span> <span class="o">=</span> <span class="n">assign_str</span><span class="o">.</span><span class="n">rfind</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">)</span>
+                <span class="n">type_</span> <span class="o">=</span> <span class="n">assign_str</span><span class="p">[:</span><span class="n">pos</span><span class="p">]</span>
+                <span class="n">varstr</span> <span class="o">=</span> <span class="n">assign_str</span><span class="p">[(</span><span class="n">pos</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):]</span>
+                <span class="n">typedict</span><span class="p">[</span><span class="n">varstr</span><span class="p">]</span> <span class="o">=</span> <span class="n">type_</span>
+        <span class="k">return</span> <span class="n">typedict</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.typedict_to_cythdef"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.typedict_to_cythdef">[docs]</a>    <span class="k">def</span> <span class="nf">typedict_to_cythdef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">typedict</span><span class="p">):</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;cdef:&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">id_</span><span class="p">,</span> <span class="n">type_</span><span class="p">)</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="n">typedict</span><span class="p">):</span>
+            <span class="c">#print(&quot;%s, %s&quot; % (repr(id_), repr(type_)))</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indent_with</span> <span class="o">+</span> <span class="n">type_</span> <span class="o">+</span> <span class="s">&#39; &#39;</span> <span class="o">+</span> <span class="n">id_</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">typedict</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">res</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indent_with</span> <span class="o">+</span> <span class="s">&#39;pass&#39;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">res</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.register_benchmark"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.register_benchmark">[docs]</a>    <span class="k">def</span> <span class="nf">register_benchmark</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">funcname</span><span class="p">,</span> <span class="n">docstr</span><span class="p">,</span> <span class="n">modname</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">funcname</span><span class="p">:</span>
+            <span class="c"># Parse doctests for benchmarks</span>
+            <span class="p">(</span><span class="n">bench_name</span><span class="p">,</span> <span class="n">bench_code</span><span class="p">)</span> <span class="o">=</span> <span class="n">cyth_benchmarks</span><span class="o">.</span><span class="n">parse_benchmarks</span><span class="p">(</span><span class="n">funcname</span><span class="p">,</span> <span class="n">docstr</span><span class="p">,</span> <span class="n">modname</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">benchmark_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bench_name</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">benchmark_codes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">bench_code</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.parse_cyth_markup"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.parse_cyth_markup">[docs]</a>    <span class="k">def</span> <span class="nf">parse_cyth_markup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">docstr</span><span class="p">,</span> <span class="n">toplevel</span><span class="o">=</span><span class="bp">False</span><span class="p">,</span> <span class="n">funcdef_node</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Args:</span>
+<span class="sd">            docstr (str): block of text possibly with cyth markups</span>
+<span class="sd">            toplevel (bool): True if docstr is in the global scope</span>
+<span class="sd">            funcdef_node: parent funcdef node for return type inference</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">funcname</span> <span class="o">=</span> <span class="bp">None</span> <span class="k">if</span> <span class="n">funcdef_node</span> <span class="ow">is</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">funcdef_node</span><span class="o">.</span><span class="n">name</span>
+        <span class="n">comment_str</span> <span class="o">=</span> <span class="n">docstr</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">has_markup</span> <span class="o">=</span> <span class="n">comment_str</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;&lt;CYTH&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+        <span class="c"># type returned_action = [`defines of string * (string, string) Hashtbl.t | `replace of string] option</span>
+        <span class="k">def</span> <span class="nf">make_defines</span><span class="p">(</span><span class="n">cyth_def</span><span class="p">,</span> <span class="n">return_type</span><span class="o">=</span><span class="bp">None</span><span class="p">):</span>
+            <span class="n">typedict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_cythdef</span><span class="p">(</span><span class="n">cyth_def</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">return_type</span><span class="p">:</span>
+                <span class="n">return_type</span> <span class="o">=</span> <span class="n">infer_return_type</span><span class="p">(</span><span class="n">funcdef_node</span><span class="p">,</span> <span class="n">typedict</span><span class="p">)</span>
+            <span class="n">actiontup</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;defines&#39;</span><span class="p">,</span> <span class="n">cyth_def</span><span class="p">,</span> <span class="n">typedict</span><span class="p">,</span> <span class="n">return_type</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">actiontup</span>
+        <span class="c"># TODO: these actions are old-style cyth commands. Replace them.</span>
+        <span class="n">tags_to_actions</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s">&#39;&lt;CYTH&gt;&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">cyth_def</span><span class="p">:</span> <span class="n">make_defines</span><span class="p">(</span><span class="n">cyth_def</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))),</span>
+            <span class="p">(</span><span class="s">&#39;&lt;CYTH returns=&quot;(.*?)&quot;&gt;&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">cyth_def</span><span class="p">:</span> <span class="n">make_defines</span><span class="p">(</span><span class="n">cyth_def</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">),</span> <span class="n">cyth_def</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">))),</span>
+            <span class="p">(</span><span class="s">&#39;&lt;CYTH:REPLACE&gt;&#39;</span><span class="p">,</span> <span class="k">lambda</span> <span class="n">cyth_def</span><span class="p">:</span> <span class="p">(</span><span class="s">&#39;replace&#39;</span><span class="p">,</span> <span class="n">utool</span><span class="o">.</span><span class="n">unindent</span><span class="p">(</span><span class="n">cyth_def</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)))),</span>
+        <span class="p">]</span>
+        <span class="n">end_tag</span> <span class="o">=</span> <span class="s">&#39;&lt;/CYTH&gt;&#39;</span>
+        <span class="n">regex_flags</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">DOTALL</span> <span class="o">|</span> <span class="n">re</span><span class="o">.</span><span class="n">MULTILINE</span>
+        <span class="n">regex_to_actions</span> <span class="o">=</span> <span class="p">[(</span><span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">tag</span> <span class="o">+</span> <span class="s">&#39;(.*?)&#39;</span> <span class="o">+</span> <span class="n">end_tag</span><span class="p">,</span> <span class="n">regex_flags</span><span class="p">),</span> <span class="n">act</span><span class="p">)</span>
+                            <span class="k">for</span> <span class="n">tag</span><span class="p">,</span> <span class="n">act</span> <span class="ow">in</span> <span class="n">tags_to_actions</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="n">has_markup</span><span class="p">:</span>
+            <span class="c"># if CYTH markup was found...</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_benchmark</span><span class="p">(</span><span class="n">funcname</span><span class="p">,</span> <span class="n">docstr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">py_modname</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">toplevel</span><span class="p">:</span>
+                <span class="c"># hack global cyth-docstrs to always CYTH:REPLACE</span>
+                <span class="n">comment_str</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="s">&#39;&lt;CYTH&gt;&#39;</span><span class="p">,</span> <span class="s">&#39;&lt;CYTH:REPLACE&gt;&#39;</span><span class="p">,</span> <span class="n">comment_str</span><span class="p">)</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">action</span><span class="p">)</span> <span class="ow">in</span> <span class="n">regex_to_actions</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">regex</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">comment_str</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="c">#cyth_def = match.group(1)</span>
+                    <span class="n">actiontup</span> <span class="o">=</span> <span class="n">action</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="n">actiontup</span>
+            <span class="k">print</span><span class="p">(</span><span class="n">comment_str</span><span class="p">)</span>
+            <span class="n">utool</span><span class="o">.</span><span class="n">printex</span><span class="p">(</span><span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;no known cyth tag in docstring&#39;</span><span class="p">),</span>
+                           <span class="n">iswarning</span><span class="o">=</span><span class="bp">True</span><span class="p">,</span>
+                           <span class="n">key_list</span><span class="o">=</span><span class="p">[</span><span class="s">&#39;funcname&#39;</span><span class="p">,</span> <span class="s">&#39;toplevel&#39;</span><span class="p">,</span> <span class="s">&#39;regex&#39;</span><span class="p">,</span> <span class="s">&#39;action&#39;</span><span class="p">,</span>
+                                     <span class="s">&#39;match&#39;</span><span class="p">,</span> <span class="s">&#39;comment_str&#39;</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c"># Do nothing if cyth markup was not found</span>
+            <span class="k">pass</span>
+        <span class="k">return</span> <span class="bp">None</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.parse_cyth_preproc_markup"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.parse_cyth_preproc_markup">[docs]</a>    <span class="k">def</span> <span class="nf">parse_cyth_preproc_markup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">docstr</span><span class="p">,</span> <span class="n">cyth_mode</span><span class="p">,</span> <span class="n">collect_macro_input</span><span class="p">,</span>
+                                  <span class="n">macro_input_buffer_ptr</span><span class="p">,</span>
+                                  <span class="n">suspended_macro_context_ptr</span><span class="p">,</span> <span class="n">inline_flag_ptr</span><span class="p">):</span>
+        <span class="n">source_lines</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">param_typedict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">bodyvars_typedict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">preproc_vars_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s">&#39;CYTH&#39;</span><span class="p">:</span> <span class="bp">True</span><span class="p">}</span>
+        <span class="n">return_type_ptr</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span>
+        <span class="n">cyth_mode_ptr</span> <span class="o">=</span> <span class="p">[</span><span class="n">cyth_mode</span><span class="p">]</span>
+        <span class="n">collect_macro_input_ptr</span> <span class="o">=</span> <span class="p">[</span><span class="n">collect_macro_input</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">handle_if</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="n">varname</span> <span class="o">=</span> <span class="n">matcher</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="c"># change to a stack in order to support nested ifs</span>
+            <span class="c">#print(&#39;handle_if: %r&#39; % varname)</span>
+            <span class="n">cyth_mode_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">preproc_vars_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">varname</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">handle_else</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="c">#print(&#39;handle_else: %r&#39; % (cyth_mode_ptr[0],))</span>
+            <span class="c">#cyth_mode_ptr[0] = not cyth_mode_ptr[0]</span>
+            <span class="k">pass</span>  <span class="c"># deliberate no-op</span>
+
+        <span class="k">def</span> <span class="nf">handle_endif</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="c">#print(&#39;handle_endif&#39;)</span>
+            <span class="n">cyth_mode_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># pop the top item in the stack for nested ifs</span>
+
+        <span class="k">def</span> <span class="nf">handle_returns_decl</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="n">return_type_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="n">matcher</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="c">#print(&#39;handle_returns %r&#39; % return_type_ptr[0])</span>
+
+        <span class="k">def</span> <span class="nf">handle_inline</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="n">inline_flag_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+
+        <span class="k">def</span> <span class="nf">handle_macro</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot; this should eventually be changed to reuse</span>
+<span class="sd">                the machinery for multiline &quot;&quot;&quot;</span>
+            <span class="n">macro_name</span> <span class="o">=</span> <span class="n">matcher</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">suspended_macro_context_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">macro_name</span><span class="p">,)</span>
+            <span class="n">collect_macro_input_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">assert</span> <span class="nb">len</span><span class="p">(</span><span class="n">macro_input_buffer_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span> <span class="n">macro_input_buffer_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">handle_endmacro</span><span class="p">(</span><span class="n">matcher</span><span class="p">):</span>
+            <span class="sd">&quot;&quot;&quot; this is quite a bit hacky, but this is the</span>
+<span class="sd">                most straightforward way to implement them until the</span>
+<span class="sd">                parse_cyth_preproc_markup/visit_FunctionDef &#39;coroutine&#39;</span>
+<span class="sd">                blob is refactored &quot;&quot;&quot;</span>
+            <span class="p">(</span><span class="n">macro_name</span><span class="p">,)</span> <span class="o">=</span> <span class="n">suspended_macro_context_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">lines</span> <span class="o">=</span> <span class="n">macro_input_buffer_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="c">#print(&#39;macro invokation of &quot;%s&quot; on lines %r&#39; % (macro_name, lines))</span>
+            <span class="n">expander</span> <span class="o">=</span> <span class="n">MACRO_EXPANDERS_DICT</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">macro_name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">expander</span><span class="p">:</span>
+                <span class="n">expanded_lines</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">]</span> <span class="o">+</span> <span class="n">expander</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">gensym</span><span class="p">,</span> <span class="n">lines</span><span class="p">)</span> <span class="o">+</span> <span class="p">[</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">errmsg</span> <span class="o">=</span> <span class="s">&#39;No macro named </span><span class="si">%r</span><span class="s"> has been registered via the cyth.macro decorator&#39;</span>
+                <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="n">errmsg</span> <span class="o">%</span> <span class="n">macro_name</span><span class="p">)</span>
+
+            <span class="n">indented_expanded_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">utool</span><span class="o">.</span><span class="n">indent</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">indent</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">indent_with</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">indentation</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+                                        <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">expanded_lines</span><span class="p">]</span>
+            <span class="c">#print(&#39;output is %r&#39; % expanded_lines)</span>
+            <span class="n">source_lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">indented_expanded_lines</span><span class="p">)</span>
+            <span class="n">collect_macro_input_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="bp">False</span>
+            <span class="n">macro_input_buffer_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">oneline_directives</span> <span class="o">=</span> <span class="p">[(</span><span class="s">&#39;#&#39;</span> <span class="o">+</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s">&#39;if (.*)&#39;</span><span class="p">,</span> <span class="n">handle_if</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;else&#39;</span><span class="p">,</span> <span class="n">handle_else</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;endif&#39;</span><span class="p">,</span> <span class="n">handle_endif</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;CYTH_RETURNS (.*)&#39;</span><span class="p">,</span> <span class="n">handle_returns_decl</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;CYTH_INLINE&#39;</span><span class="p">,</span> <span class="n">handle_inline</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;macro ([^ ]*).*&#39;</span><span class="p">,</span> <span class="n">handle_macro</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;endmacro&#39;</span><span class="p">,</span> <span class="n">handle_endmacro</span><span class="p">),</span>  <span class="c"># HACK</span>
+        <span class="p">]]</span>
+
+        <span class="k">def</span> <span class="nf">handle_param_types</span><span class="p">(</span><span class="n">matcher</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+            <span class="c"># the indent/unindent pair is not a no-op: unindent goes all the way,</span>
+            <span class="c"># indent just does one step</span>
+            <span class="c">#print(lines)</span>
+            <span class="c">#cythdef = &#39;\n&#39;.join([&#39;cdef:\n&#39;].append(utool.indent(utool.unindent(&#39;\n&#39;.join(lines))).split(&#39;\n&#39;)))</span>
+            <span class="c">#print(&#39;synthesized_cythdef = %r&#39; % (cythdef,))</span>
+            <span class="c">#param_typedict.update(self.parse_cythdef(cythdef))</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+                <span class="n">tmp_typedict</span> <span class="o">=</span> <span class="n">parse_cdef_line</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="c">#print(&#39;%r -&gt; %r&#39; % (line, tmp_typedict))</span>
+                <span class="n">param_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">tmp_typedict</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">handle_cdef</span><span class="p">(</span><span class="n">matcher</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+                <span class="n">tmp_typedict</span> <span class="o">=</span> <span class="n">parse_cdef_line</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="c">#print(&#39;%r -&gt; %r&#39; % (line, tmp_typedict))</span>
+                <span class="n">bodyvars_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">tmp_typedict</span><span class="p">)</span>
+
+        <span class="n">multiline_directives</span> <span class="o">=</span> <span class="p">[((</span><span class="n">a</span> <span class="o">+</span> <span class="s">&quot;:&quot;</span><span class="p">),</span> <span class="n">b</span><span class="p">)</span> <span class="k">for</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span> <span class="ow">in</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s">&#39;#CYTH_PARAM_TYPES&#39;</span><span class="p">,</span> <span class="n">handle_param_types</span><span class="p">),</span>
+            <span class="p">(</span><span class="s">&#39;cdef&#39;</span><span class="p">,</span> <span class="n">handle_cdef</span><span class="p">),</span>
+        <span class="p">]]</span>
+
+        <span class="n">regex_compile_car</span> <span class="o">=</span> <span class="k">lambda</span> <span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">):</span> <span class="p">(</span><span class="n">re</span><span class="o">.</span><span class="n">compile</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="n">b</span><span class="p">)</span>
+        <span class="c">#print(list(oneline_directives))</span>
+        <span class="n">compiled_oneline_directives</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">regex_compile_car</span><span class="p">,</span> <span class="n">oneline_directives</span><span class="p">))</span>
+        <span class="n">compiled_multiline_directives</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">regex_compile_car</span><span class="p">,</span> <span class="n">multiline_directives</span><span class="p">))</span>
+
+        <span class="c"># hack for lack of labeled continues</span>
+        <span class="k">def</span> <span class="nf">loop_body</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+            <span class="c">#print(&#39;cyth_mode_ptr[0] = %r, Line &quot;%s&quot;&#39; % (cyth_mode_ptr[0], line))</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span> <span class="ow">in</span> <span class="n">compiled_oneline_directives</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">regex</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="n">handler</span><span class="p">(</span><span class="n">match</span><span class="p">)</span>
+                    <span class="k">return</span> <span class="bp">None</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">regex</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span> <span class="ow">in</span> <span class="n">compiled_multiline_directives</span><span class="p">:</span>
+                <span class="n">match</span> <span class="o">=</span> <span class="n">regex</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">match</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="p">(</span><span class="n">match</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">cyth_mode_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]:</span>
+                <span class="c">#if line.strip().startswith(&#39;cdef&#39;):</span>
+                <span class="c">#    bodyvars_typedict.update(parse_cdef_line(line))</span>
+                <span class="c">#    #source_lines.append(&#39;\n&#39; + line.replace(&#39;cdef [^ ]*&#39;, &#39;&#39;))</span>
+                <span class="c">##else:</span>
+                <span class="n">source_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span> <span class="n">line</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">None</span>
+
+        <span class="n">multiline_buffer</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">multiline_start_indent</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">do_multiline</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">docstr</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">):</span>
+            <span class="c">#print(&#39;do_multiline = %r, Line &quot;%s&quot;&#39; % (do_multiline, line))</span>
+            <span class="k">if</span> <span class="n">do_multiline</span><span class="p">:</span>
+                <span class="n">current_indentation</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">get_indentation</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">multiline_start_indent</span> <span class="o">&lt;</span> <span class="n">current_indentation</span><span class="p">:</span>
+                    <span class="n">multiline_buffer</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+                    <span class="k">continue</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="c">#print(&#39;calling handler&#39;)</span>
+                    <span class="p">(</span><span class="n">match</span><span class="p">,</span> <span class="n">handler</span><span class="p">)</span> <span class="o">=</span> <span class="n">do_multiline</span>
+                    <span class="n">handler</span><span class="p">(</span><span class="n">match</span><span class="p">,</span> <span class="n">multiline_buffer</span><span class="p">)</span>
+                    <span class="n">multiline_buffer</span> <span class="o">=</span> <span class="p">[]</span>
+                    <span class="n">multiline_start_indent</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="n">do_multiline</span> <span class="o">=</span> <span class="n">loop_body</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">do_multiline</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="n">multiline_buffer</span> <span class="o">==</span> <span class="p">[],</span> <span class="n">multiline_buffer</span>
+                <span class="n">multiline_start_indent</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">get_indentation</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+
+        <span class="c">#print(&#39;at return, cyth_mode_ptr[0] is %r&#39; % (cyth_mode_ptr[0],))</span>
+        <span class="k">return</span> <span class="n">source_lines</span><span class="p">,</span> <span class="n">cyth_mode_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">collect_macro_input_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">param_typedict</span><span class="p">,</span> <span class="n">bodyvars_typedict</span><span class="p">,</span> <span class="n">return_type_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.visit_Module"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.visit_Module">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Module</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="c"># cr = CallRecorder()</span>
+        <span class="c"># cr.visit(node)</span>
+        <span class="c"># self.all_funcalls = cr.calls</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">spig</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">get_alias_name</span><span class="p">(</span><span class="n">al</span><span class="p">):</span>
+            <span class="n">alias_name</span> <span class="o">=</span> <span class="n">al</span><span class="o">.</span><span class="n">name</span> <span class="k">if</span> <span class="n">al</span><span class="o">.</span><span class="n">asname</span> <span class="ow">is</span> <span class="bp">None</span> <span class="k">else</span> <span class="n">al</span><span class="o">.</span><span class="n">asname</span>
+            <span class="k">return</span> <span class="n">alias_name</span>
+
+        <span class="k">for</span> <span class="n">subnode</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">body</span><span class="p">:</span>
+            <span class="c"># parse for cythtags</span>
+            <span class="k">if</span> <span class="n">is_docstring</span><span class="p">(</span><span class="n">subnode</span><span class="p">):</span>
+                <span class="c">#print(&#39;Encountered global docstring: %s&#39; % repr(subnode.value.s))</span>
+                <span class="n">docstr</span> <span class="o">=</span> <span class="n">subnode</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">s</span>
+                <span class="c">#actiontup = self.parse_cyth_markup(docstr, toplevel=True)</span>
+                <span class="c">#if actiontup is not None:</span>
+                <span class="c">#    if actiontup[0] == &#39;replace&#39;:</span>
+                <span class="c">#        cyth_def = actiontup[1]</span>
+                <span class="c">#        self.newline(extra=1)</span>
+                <span class="c">#        self.write(cyth_def)</span>
+                <span class="n">hacky_blob_of_retvals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_cyth_preproc_markup</span><span class="p">(</span><span class="n">docstr</span><span class="p">,</span> <span class="bp">False</span><span class="p">,</span> <span class="bp">False</span><span class="p">,</span> <span class="p">[[]],</span> <span class="p">[</span><span class="bp">None</span><span class="p">],</span> <span class="p">[</span><span class="bp">False</span><span class="p">])</span>
+                <span class="n">lines</span> <span class="o">=</span> <span class="n">hacky_blob_of_retvals</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">newline</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">line</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">line</span><span class="p">)</span>
+            <span class="c"># try to parse functions for cyth tags</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subnode</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">FunctionDef</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">subnode</span><span class="p">)</span>
+            <span class="c"># register imports</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subnode</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Import</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">subnode</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+                    <span class="n">alias_</span> <span class="o">=</span> <span class="n">get_alias_name</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">imported_modules</span><span class="p">[</span><span class="n">alias_</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">alias</span><span class="p">,</span> <span class="bp">False</span><span class="p">]</span>
+            <span class="c"># register from imports</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subnode</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">ImportFrom</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">alias</span> <span class="ow">in</span> <span class="n">subnode</span><span class="o">.</span><span class="n">names</span><span class="p">:</span>
+                    <span class="n">alias_</span> <span class="o">=</span> <span class="n">get_alias_name</span><span class="p">(</span><span class="n">alias</span><span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">imported_functions</span><span class="p">[</span><span class="n">alias_</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">subnode</span><span class="o">.</span><span class="n">module</span><span class="p">,</span> <span class="n">alias</span><span class="p">,</span> <span class="bp">False</span><span class="p">]</span>
+            <span class="c"># register a global</span>
+            <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subnode</span><span class="p">,</span> <span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">Assign</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">AugAssign</span><span class="p">)):</span>
+                <span class="n">targets</span> <span class="o">=</span> <span class="n">assignment_targets</span><span class="p">(</span><span class="n">subnode</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">any</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">spig</span><span class="o">.</span><span class="n">globals_used</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">targets</span><span class="p">)):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">subnode</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c">#print(&#39;Skipping a global %r&#39; % subnode.__class__)</span>
+                <span class="k">pass</span>
+        <span class="n">imports</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">generate_imports</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">imported_modules</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">imported_functions</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">import_lines</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">imports</span><span class="p">)</span>
+        <span class="c">#return BASE_CLASS.visit_Module(self, node)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.visit_ImportFrom"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.visit_ImportFrom">[docs]</a>    <span class="k">def</span> <span class="nf">visit_ImportFrom</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">,</span> <span class="n">emitCimport</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="n">imp</span> <span class="o">=</span> <span class="s">&#39;cimport&#39;</span> <span class="k">if</span> <span class="n">emitCimport</span> <span class="k">else</span> <span class="s">&#39;import&#39;</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">statement</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="s">&#39;from &#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">level</span> <span class="o">*</span> <span class="s">&#39;.&#39;</span><span class="p">,</span>
+                           <span class="n">node</span><span class="o">.</span><span class="n">module</span><span class="p">,</span> <span class="s">&#39; &#39;</span> <span class="o">+</span> <span class="n">imp</span> <span class="o">+</span> <span class="s">&#39; &#39;</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">statement</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="s">&#39;from &#39;</span><span class="p">,</span> <span class="n">node</span><span class="o">.</span><span class="n">level</span> <span class="o">*</span> <span class="s">&#39;. &#39;</span> <span class="o">+</span> <span class="n">imp</span> <span class="o">+</span> <span class="s">&#39; &#39;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">comma_list</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">names</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.generate_imports"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.generate_imports">[docs]</a>    <span class="k">def</span> <span class="nf">generate_imports</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">modules</span><span class="p">,</span> <span class="n">functions</span><span class="p">):</span>
+        <span class="n">imports</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">alias</span><span class="p">,</span> <span class="n">used_flag</span><span class="p">)</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">modules</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">used_flag</span><span class="p">:</span>
+                <span class="n">import_line</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">ast_to_sourcecode</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">Import</span><span class="p">(</span><span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="n">alias</span><span class="p">]))</span>
+                <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">import_line</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cimport_whitelist</span><span class="p">:</span>
+                    <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&#39;c&#39;</span> <span class="o">+</span> <span class="n">import_line</span><span class="p">)</span>
+        <span class="k">for</span> <span class="p">(</span><span class="n">modulename</span><span class="p">,</span> <span class="n">alias</span><span class="p">,</span> <span class="n">used_flag</span><span class="p">)</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">itervalues</span><span class="p">(</span><span class="n">functions</span><span class="p">):</span>
+            <span class="c"># If module</span>
+            <span class="k">if</span> <span class="n">used_flag</span> <span class="ow">and</span> <span class="n">alias</span><span class="o">.</span><span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">import_from_blacklist</span><span class="p">:</span>
+                <span class="n">impnode</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">ImportFrom</span><span class="p">(</span><span class="n">module</span><span class="o">=</span><span class="n">modulename</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="n">alias</span><span class="p">],</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+                <span class="n">impsrc</span>  <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">ast_to_sourcecode</span><span class="p">(</span><span class="n">impnode</span><span class="p">)</span>
+                <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">impsrc</span><span class="p">)</span>
+                <span class="c"># Check if the import is explicitly whitelisted or blacklisted</span>
+                <span class="n">whitelisted</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">modulename</span><span class="o">.</span><span class="n">startswith</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cimport_whitelist</span><span class="p">))</span>
+                <span class="n">cblacklisted</span> <span class="o">=</span> <span class="n">modulename</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">cimport_blacklist</span>
+                <span class="k">if</span> <span class="n">whitelisted</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">cblacklisted</span><span class="p">:</span>
+                    <span class="n">temp_cv</span> <span class="o">=</span> <span class="n">CythVisitor</span><span class="p">()</span>
+                    <span class="n">temp_cv</span><span class="o">.</span><span class="n">visit_ImportFrom</span><span class="p">(</span><span class="n">impnode</span><span class="p">,</span> <span class="n">emitCimport</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
+                    <span class="n">import_line</span> <span class="o">=</span> <span class="n">temp_cv</span><span class="o">.</span><span class="n">get_result</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">import_line</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">modulename</span> <span class="ow">in</span> <span class="nb">set</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">modules_to_cimport</span><span class="p">):</span>
+            <span class="n">module_alias</span> <span class="o">=</span> <span class="n">modules</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">modulename</span><span class="p">,</span> <span class="p">[</span><span class="bp">None</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">module_alias</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">module_alias</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">alias</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">module_alias</span><span class="p">)</span>
+                <span class="n">cythed_alias</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">module_alias</span><span class="p">)</span>
+                <span class="n">cythed_alias</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_name</span><span class="p">(</span><span class="n">module_alias</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="c"># short circuit exploit for brevity</span>
+                <span class="n">cythed_alias</span><span class="o">.</span><span class="n">asname</span> <span class="o">=</span> <span class="n">cythed_alias</span><span class="o">.</span><span class="n">asname</span> <span class="ow">and</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_name</span><span class="p">(</span><span class="n">module_alias</span><span class="o">.</span><span class="n">asname</span><span class="p">)</span>
+                <span class="n">tmpnode</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">Import</span><span class="p">(</span><span class="n">names</span><span class="o">=</span><span class="p">[</span><span class="n">cythed_alias</span><span class="p">])</span>
+                <span class="n">import_line</span> <span class="o">=</span> <span class="s">&#39;c&#39;</span> <span class="o">+</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">ast_to_sourcecode</span><span class="p">(</span><span class="n">tmpnode</span><span class="p">)</span>
+                <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">import_line</span><span class="p">)</span>
+        <span class="n">module_func_dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">chain</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cythonized_funcs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(),</span>
+                                      <span class="bp">self</span><span class="o">.</span><span class="n">plain_funcs</span><span class="o">.</span><span class="n">iteritems</span><span class="p">()))</span>
+
+        <span class="c">#@utool.show_return_value</span>
+        <span class="k">def</span> <span class="nf">is_called_in</span><span class="p">(</span><span class="n">funcname</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="n">call_list</span> <span class="o">=</span> <span class="n">get_funcalls_in_node</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="k">def</span> <span class="nf">_iscalled</span><span class="p">(</span><span class="n">call</span><span class="p">):</span>
+                <span class="k">return</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Call</span><span class="p">)</span> <span class="ow">and</span>
+                        <span class="nb">isinstance</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">)</span> <span class="ow">and</span>
+                        <span class="n">funcname</span> <span class="o">==</span> <span class="n">call</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="n">_iscalled</span><span class="p">,</span> <span class="n">call_list</span><span class="p">))</span>
+            <span class="c">#def name_of_call(call):  # ast.Node -&gt; string option</span>
+            <span class="c">#    #print(&#39;ast dump: %r&#39; % ast.dump(call))</span>
+            <span class="c">#    if not isinstance(call, ast.Call):</span>
+            <span class="c">#        return []</span>
+            <span class="c">#    if not isinstance(call.func, ast.Name):</span>
+            <span class="c">#        return []</span>
+            <span class="c">#    return [call.func.id]</span>
+            <span class="c">#is_called = funcname in chain(*map(name_of_call, call_list))</span>
+            <span class="c">#return is_called</span>
+
+        <span class="n">called_funcs</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">print</span><span class="p">(</span><span class="s">&#39;module_func_dict = </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">module_func_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">(),))</span>
+        <span class="k">for</span> <span class="n">callee</span> <span class="ow">in</span> <span class="n">module_func_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="k">for</span> <span class="p">(</span><span class="n">caller</span><span class="p">,</span> <span class="n">caller_node</span><span class="p">)</span> <span class="ow">in</span> <span class="n">six</span><span class="o">.</span><span class="n">iteritems</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cythonized_funcs</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">is_called_in</span><span class="p">(</span><span class="n">callee</span><span class="p">,</span> <span class="n">caller_node</span><span class="p">):</span>
+                    <span class="n">called_funcs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">callee</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">called_funcs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">ast</span><span class="o">.</span><span class="n">alias</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">called_funcs</span><span class="p">]</span>
+            <span class="n">fromimport</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">ImportFrom</span><span class="p">(</span><span class="n">module</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">py_modname</span><span class="p">,</span> <span class="n">names</span><span class="o">=</span><span class="n">names</span><span class="p">,</span> <span class="n">level</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+            <span class="n">imports</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cyth_helpers</span><span class="o">.</span><span class="n">ast_to_sourcecode</span><span class="p">(</span><span class="n">fromimport</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">imports</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.visit_Call"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gets called when parser encounters a function call</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#print(ast.dump(node))</span>
+        <span class="c"># Special case for functions with _cyth suffix. These should have been</span>
+        <span class="c"># generated by us.</span>
+        <span class="n">is_cyth_call</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">name</span><span class="p">:</span> <span class="n">name</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;_cyth&#39;</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;_&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Attribute</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+            <span class="c">#print(&#39;visit_Call, branch 1&#39;)</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">imported_modules</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">imported_modules</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="n">is_cyth_call</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">attr</span><span class="p">):</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">modules_to_cimport</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+                <span class="n">newnode</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+                <span class="n">newnode</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">attr</span> <span class="o">=</span> <span class="s">&#39;_&#39;</span> <span class="o">+</span> <span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">attr</span>
+                <span class="n">newnode</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_name</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">)</span>
+                <span class="k">return</span> <span class="n">BASE_CLASS</span><span class="o">.</span><span class="n">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">newnode</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+            <span class="c">#print(&#39;visit_Call, branch 2&#39;)</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">imported_functions</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">imported_functions</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span><span class="p">][</span><span class="mi">2</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+            <span class="k">if</span> <span class="n">is_cyth_call</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span><span class="p">):</span>
+                <span class="n">newnode</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+                <span class="n">newnode</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span> <span class="o">=</span> <span class="s">&#39;_&#39;</span> <span class="o">+</span> <span class="n">node</span><span class="o">.</span><span class="n">func</span><span class="o">.</span><span class="n">id</span>
+                <span class="k">return</span> <span class="n">BASE_CLASS</span><span class="o">.</span><span class="n">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">newnode</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">BASE_CLASS</span><span class="o">.</span><span class="n">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.visit_str"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.visit_str">[docs]</a>    <span class="k">def</span> <span class="nf">visit_str</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">string</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">string</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.visit_FunctionDef"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.visit_FunctionDef">[docs]</a>    <span class="k">def</span> <span class="nf">visit_FunctionDef</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Gets called when parser encounters a function definition</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c">#super(CythVisitor, self).visit_FunctionDef(node)</span>
+        <span class="n">new_body</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="c">#actiontup = None</span>
+        <span class="n">cyth_mode</span> <span class="o">=</span> <span class="bp">False</span>  <span class="c"># used for #if/else/endif</span>
+        <span class="n">param_typedict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">bodyvars_typedict</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">return_type</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">has_markup</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">first_docstr</span> <span class="o">=</span> <span class="bp">None</span>
+        <span class="n">inline_flag_ptr</span> <span class="o">=</span> <span class="p">[</span><span class="bp">False</span><span class="p">]</span>
+        <span class="n">collect_macro_input</span> <span class="o">=</span> <span class="bp">False</span>
+        <span class="n">macro_input_buffer_ptr</span> <span class="o">=</span> <span class="p">[[]]</span>
+        <span class="n">suspended_macro_context_ptr</span> <span class="o">=</span> <span class="p">[</span><span class="bp">None</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">stmt</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">body</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_docstring</span><span class="p">(</span><span class="n">stmt</span><span class="p">):</span>
+                <span class="n">docstr</span> <span class="o">=</span> <span class="n">stmt</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">s</span>
+                <span class="k">if</span> <span class="n">first_docstr</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">first_docstr</span> <span class="o">=</span> <span class="n">docstr</span>
+                <span class="n">has_markup</span> <span class="o">=</span> <span class="n">has_markup</span> <span class="ow">or</span> <span class="n">docstr</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;#if CYTH&#39;</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span>
+                <span class="c">#actiontup = self.parse_cyth_markup(docstr, funcdef_node=node)</span>
+                <span class="p">(</span><span class="n">source_lines</span><span class="p">,</span> <span class="n">cyth_mode</span><span class="p">,</span> <span class="n">collect_macro_input</span><span class="p">,</span>
+                 <span class="n">new_param_typedict</span><span class="p">,</span> <span class="n">new_bodyvars_typedict</span><span class="p">,</span>
+                 <span class="n">new_return_type</span><span class="p">)</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_cyth_preproc_markup</span><span class="p">(</span>
+                    <span class="n">docstr</span><span class="p">,</span> <span class="n">cyth_mode</span><span class="p">,</span> <span class="n">collect_macro_input</span><span class="p">,</span>
+                    <span class="n">macro_input_buffer_ptr</span><span class="p">,</span> <span class="n">suspended_macro_context_ptr</span><span class="p">,</span>
+                    <span class="n">inline_flag_ptr</span><span class="p">)</span>
+                <span class="c">#print(&#39;source_lines: %r&#39; % (source_lines,))</span>
+                <span class="n">new_body</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">source_lines</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">new_return_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">return_type</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                    <span class="n">return_type</span> <span class="o">=</span> <span class="n">new_return_type</span>
+                <span class="n">param_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_param_typedict</span><span class="p">)</span>
+                <span class="n">bodyvars_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">new_bodyvars_typedict</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="c">#print(&#39;cyth_mode: %r, stmt: %r&#39; % (cyth_mode, ast.dump(stmt)))</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="n">cyth_mode</span> <span class="ow">or</span> <span class="n">collect_macro_input</span><span class="p">):</span>
+                    <span class="n">new_body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">stmt</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">collect_macro_input</span><span class="p">:</span>
+                    <span class="n">macro_input_buffer_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cyth_helpers</span><span class="o">.</span><span class="n">ast_to_sourcecode</span><span class="p">(</span><span class="n">stmt</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">has_markup</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">cythonized_funcs</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">register_benchmark</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">first_docstr</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">py_modname</span><span class="p">)</span>
+            <span class="n">union_typedict</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">union_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">param_typedict</span><span class="p">)</span>
+            <span class="n">union_typedict</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">bodyvars_typedict</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">return_type</span> <span class="ow">is</span> <span class="bp">None</span><span class="p">:</span>
+                <span class="n">return_type</span> <span class="o">=</span> <span class="n">infer_return_type</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">union_typedict</span><span class="p">)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">newline</span><span class="p">(</span><span class="n">extra</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">cyth_funcname</span> <span class="o">=</span> <span class="n">cyth_helpers</span><span class="o">.</span><span class="n">get_cyth_name</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="c"># TODO: should allow for user specification</span>
+            <span class="n">func_prefix</span> <span class="o">=</span> <span class="n">utool</span><span class="o">.</span><span class="n">unindent</span><span class="p">(</span><span class="s">&#39;&#39;&#39;</span>
+<span class="s">            @cython.boundscheck(False)</span>
+<span class="s">            @cython.wraparound(False)</span>
+<span class="s">            &#39;&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+            <span class="c"># http://docs.cython.org/src/reference/compilation.html#compiler-directives</span>
+            <span class="c"># [(name, defaultval), ...]</span>
+            <span class="n">cython_compiler_directives</span> <span class="o">=</span> <span class="p">[</span>  <span class="c"># NOQA</span>
+                <span class="p">(</span><span class="s">&#39;boundscheck&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;wraparound&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;nonecheck&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;overflowcheck&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;overflowcheck.fold&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>  <span class="c"># may help or hurt depending on compiler, arch, and opt settings</span>
+                <span class="p">(</span><span class="s">&#39;embedsignature&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;cdivision&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;cdivision_warnings&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;always_allow_keywords&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;profile&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;linetrace&#39;</span><span class="p">,</span> <span class="bp">False</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;invert_types&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;language_level&#39;</span><span class="p">,</span> <span class="mi">2</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;c_string_type&#39;</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;c_string_encoding&#39;</span><span class="p">,</span> <span class="s">&#39;ascii&#39;</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;type_version_tag&#39;</span><span class="p">,</span> <span class="bp">True</span><span class="p">),</span>
+                <span class="p">(</span><span class="s">&#39;unraisable_tracebacks&#39;</span><span class="p">,</span> <span class="bp">None</span><span class="p">),</span>
+            <span class="p">]</span>
+
+            <span class="n">return_string</span> <span class="o">=</span> <span class="p">(</span><span class="s">&quot; </span><span class="si">%s</span><span class="s"> &quot;</span> <span class="o">%</span> <span class="n">return_type</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_type</span> <span class="ow">is</span> <span class="ow">not</span> <span class="bp">None</span> <span class="k">else</span> <span class="s">&quot; &quot;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">statement</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">func_prefix</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+            <span class="c"># HACK: indexing is used to extract a portion of the generated stream, which wouldn&#39;t</span>
+            <span class="c"># be needed if statement/write/etc all returned values rather than writing a stream</span>
+            <span class="n">index_before</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">result</span><span class="p">)</span>
+            <span class="n">inline_string</span> <span class="o">=</span> <span class="s">&#39; inline &#39;</span> <span class="k">if</span> <span class="n">inline_flag_ptr</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">else</span> <span class="s">&#39;&#39;</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;cpdef</span><span class="si">%s%s%s</span><span class="s">(&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">inline_string</span><span class="p">,</span> <span class="n">return_string</span><span class="p">,</span> <span class="n">cyth_funcname</span><span class="p">,))</span>
+            <span class="n">nonsig_typedict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">signature</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">typedict</span><span class="o">=</span><span class="n">union_typedict</span><span class="p">)</span>
+            <span class="n">cyth_def_body</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">typedict_to_cythdef</span><span class="p">(</span><span class="n">nonsig_typedict</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;)&#39;</span><span class="p">)</span>
+            <span class="n">function_signature</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">result</span><span class="p">[</span><span class="n">index_before</span><span class="p">:])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">interface_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">function_signature</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)</span>
+            <span class="c"># TODO FIXME: the typedict parser is a giant hack right now.</span>
+            <span class="c"># Find a good cython parser</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indentation</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="c">#cyth_def_body = self.typedict_to_cythdef(bodyvars_typedict)</span>
+            <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">cyth_def_body</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">,</span> <span class="n">s</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">indentation</span> <span class="o">-=</span> <span class="mi">1</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">body</span><span class="p">(</span><span class="n">new_body</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">plain_funcs</span><span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">node</span>
+<span class="c">#        if actiontup:</span>
+<span class="c">#            self.cythonized_funcs[node.name] = node</span>
+<span class="c">#            if actiontup[0] == &#39;defines&#39;:</span>
+<span class="c">#                _, cyth_def, typedict, return_type = actiontup</span>
+<span class="c">#                #self.decorators(node, 2)</span>
+<span class="c">#                self.newline(extra=1)</span>
+<span class="c">#                cyth_funcname = cyth_helpers.get_cyth_name(node.name)</span>
+<span class="c">#                # TODO: should allow for user specification</span>
+<span class="c">#                func_prefix = utool.unindent(&#39;&#39;&#39;</span>
+<span class="c">#                @cython.boundscheck(False)</span>
+<span class="c">#                @cython.wraparound(False)</span>
+<span class="c">#                &#39;&#39;&#39;).strip()</span>
+<span class="c">#</span>
+<span class="c">#                return_string = (&quot; %s &quot; % return_type) if return_type is not None else &quot; &quot;</span>
+<span class="c">#                #self.statement(node, func_prefix + &#39;\ncpdef%s%s(&#39; % (return_string, cyth_funcname,))</span>
+<span class="c">#                self.statement(node, func_prefix + &#39;\n&#39;)</span>
+<span class="c">#                # HACK: indexing is used to extract a portion of the generated stream, which wouldn&#39;t</span>
+<span class="c">#                # be needed if statement/write/etc all returned values rather than writing a stream</span>
+<span class="c">#                index_before = len(self.result)</span>
+<span class="c">#                self.write(&#39;cpdef%s%s(&#39; % (return_string, cyth_funcname,))</span>
+<span class="c">#                nonsig_typedict = self.signature(node.args, typedict=typedict)</span>
+<span class="c">#                cyth_def_body = self.typedict_to_cythdef(nonsig_typedict)</span>
+<span class="c">#                self.write(&#39;)&#39;)</span>
+<span class="c">#                function_signature = &#39;&#39;.join(self.result[index_before:])</span>
+<span class="c">#                self.interface_lines.append(function_signature)</span>
+<span class="c">#                if getattr(node, &#39;returns&#39;, None) is not None:</span>
+<span class="c">#                    self.write(&#39; -&gt;&#39;, node.returns)</span>
+<span class="c">#                self.write(&#39;:&#39;)</span>
+<span class="c">#                self.indentation += 1</span>
+<span class="c">#                for s in cyth_def_body:</span>
+<span class="c">#                    self.write(&#39;\n&#39;, s)</span>
+<span class="c">#                self.indentation -= 1</span>
+<span class="c">#                self.body(new_body)</span>
+<span class="c">#            elif actiontup[0] == &#39;replace&#39;:</span>
+<span class="c">#                cyth_def = actiontup[1]</span>
+<span class="c">#                self.newline(extra=1)</span>
+<span class="c">#                self.write(cyth_def)</span>
+<span class="c">#                regex_flags = re.MULTILINE</span>
+<span class="c">#                sig_regex = re.compile(&#39;(cpdef.*\)):$&#39;, regex_flags)</span>
+<span class="c">#                match = sig_regex.search(cyth_def)</span>
+<span class="c">#                function_signature = match.group(1)</span>
+<span class="c">#                self.interface_lines.append(function_signature)</span>
+<span class="c">#        else:</span>
+<span class="c">#            self.plain_funcs[node.name] = node</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.comma_list"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.comma_list">[docs]</a>    <span class="k">def</span> <span class="nf">comma_list</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="p">,</span> <span class="n">trailing</span><span class="o">=</span><span class="bp">False</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">item</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">items</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">idx</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;, &#39;</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">trailing</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+</div>
+<div class="viewcode-block" id="CythVisitor.get_benchmarks"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CythVisitor.get_benchmarks">[docs]</a>    <span class="k">def</span> <span class="nf">get_benchmarks</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">bench_text</span> <span class="o">=</span> <span class="n">cyth_benchmarks</span><span class="o">.</span><span class="n">make_bench_text</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">benchmark_codes</span><span class="p">,</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">benchmark_names</span><span class="p">,</span>
+                                                     <span class="bp">self</span><span class="o">.</span><span class="n">py_modname</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">bench_text</span>
+
+</div></div>
+<div class="viewcode-block" id="is_docstring"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.is_docstring">[docs]</a><span class="k">def</span> <span class="nf">is_docstring</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Expr</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Str</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="assignment_targets"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.assignment_targets">[docs]</a><span class="k">def</span> <span class="nf">assignment_targets</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Assign nodes have a list of multiple targets, which is used for</span>
+<span class="sd">    &#39;a = b = c&#39; (a and b are both targets)</span>
+
+<span class="sd">    &#39;x, y = y, x&#39; has a tuple as the only element of the targets array,</span>
+<span class="sd">    (likewise for &#39;[x, y] = [y, x]&#39;, but with lists)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">Assign</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">AugAssign</span><span class="p">)),</span> <span class="nb">type</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">AugAssign</span><span class="p">):</span>
+        <span class="n">assign_targets</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span><span class="o">.</span><span class="n">target</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">assign_targets</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Assign</span><span class="p">):</span>
+        <span class="n">assign_targets</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">targets</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">Tuple</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">List</span><span class="p">)):</span>
+                <span class="n">assign_targets</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">target</span><span class="o">.</span><span class="n">elts</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">assign_targets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">assign_targets</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s">&#39;unexpected node type </span><span class="si">%r</span><span class="s">&#39;</span> <span class="o">%</span> <span class="nb">type</span><span class="p">(</span><span class="n">node</span><span class="p">))</span>
+
+
+<span class="c">#def parseparen(string):</span>
+<span class="c">#    src = cStringIO.StringIO(line3).readline</span>
+<span class="c">#    tokentup_list = list(tokenize.generate_tokens(src))</span>
+<span class="c">#    token_list = [token[1] for token in tokentup_list]</span>
+
+</div>
+<div class="viewcode-block" id="parse_cdef_line"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.parse_cdef_line">[docs]</a><span class="k">def</span> <span class="nf">parse_cdef_line</span><span class="p">(</span><span class="n">line</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from cyth.cyth_script import *  # NOQA</span>
+<span class="sd">        &gt;&gt;&gt; line1 = &#39;np.array[float, ndims=2] x, y, z&#39;</span>
+<span class="sd">        &gt;&gt;&gt; sorted(parse_cdef_line(line1).items())</span>
+<span class="sd">        [(&#39;x&#39;, &#39;np.array[float,ndims=2]&#39;), (&#39;y&#39;, &#39;np.array[float,ndims=2]&#39;), (&#39;z&#39;, &#39;np.array[float,ndims=2]&#39;)]</span>
+<span class="sd">        &gt;&gt;&gt; line2 = &#39;cdef int x=y, y=2, z=3&#39;</span>
+<span class="sd">        &gt;&gt;&gt; sorted(parse_cdef_line(line2).items())</span>
+<span class="sd">        [(&#39;x&#39;, &#39;int&#39;), (&#39;y&#39;, &#39;int&#39;), (&#39;z&#39;, &#39;int&#39;)]</span>
+<span class="sd">        &gt;&gt;&gt; line3 = &#39;cdef np.ndarray[np.float64_t, ndim=1] out = np.zeros((nMats,), dtype=np.float64)&#39;</span>
+<span class="sd">        &gt;&gt;&gt; sorted(parse_cdef_line(line3).items())</span>
+<span class="sd">        [(&#39;out&#39;, &#39;np.ndarray[np.float64_t, ndim=1]&#39;)]</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">line</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39; = &#39;</span><span class="p">,</span> <span class="s">&#39;=&#39;</span><span class="p">)</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s">&#39;cdef &#39;</span><span class="p">,</span> <span class="s">&#39;&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39; &#39;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">token</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">tokens</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">token</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="mi">1</span><span class="p">:</span>
+            <span class="k">break</span>
+    <span class="n">_type</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">[:</span><span class="n">ix</span> <span class="o">+</span> <span class="mi">1</span><span class="p">])</span>
+    <span class="n">varnames_split_</span> <span class="o">=</span> <span class="s">&#39;&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">tokens</span><span class="p">[</span><span class="n">ix</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:])</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&quot;,&quot;</span><span class="p">)</span>
+    <span class="n">varnames_hack_</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">lparen</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">rparen</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">current</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+    <span class="c"># Not a general solution</span>
+    <span class="k">for</span> <span class="n">t</span> <span class="ow">in</span> <span class="n">varnames_split_</span><span class="p">:</span>
+        <span class="n">lparen</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s">&#39;(&#39;</span><span class="p">)</span>
+        <span class="n">rparen</span> <span class="o">+=</span> <span class="n">t</span><span class="o">.</span><span class="n">count</span><span class="p">(</span><span class="s">&#39;)&#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">lparen</span> <span class="o">!=</span> <span class="n">rparen</span><span class="p">:</span>
+            <span class="n">current</span> <span class="o">+=</span> <span class="n">t</span> <span class="o">+</span> <span class="s">&#39;,&#39;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">current</span> <span class="o">+=</span> <span class="n">t</span>
+            <span class="n">varnames_hack_</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current</span><span class="p">)</span>
+            <span class="n">current</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+    <span class="n">varnames</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;=&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">varnames_hack_</span><span class="p">)</span>
+    <span class="n">typedict</span> <span class="o">=</span> <span class="p">{</span><span class="n">varname</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span> <span class="n">_type</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">varname</span> <span class="ow">in</span> <span class="n">varnames</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">typedict</span>
+
+</div>
+<div class="viewcode-block" id="FirstpassInformationGatherer"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.FirstpassInformationGatherer">[docs]</a><span class="k">class</span> <span class="nc">FirstpassInformationGatherer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeVisitor</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    first pass visitor class</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">global_names</span> <span class="o">=</span> <span class="p">[]</span>
+
+<div class="viewcode-block" id="FirstpassInformationGatherer.visit_Module"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.FirstpassInformationGatherer.visit_Module">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Module</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">subnode</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">body</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">subnode</span><span class="p">,</span> <span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">Assign</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">AugAssign</span><span class="p">)):</span>
+                <span class="n">assign_targets</span> <span class="o">=</span> <span class="n">assignment_targets</span><span class="p">(</span><span class="n">subnode</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">assign_targets</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">global_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="SecondpassInformationGatherer"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.SecondpassInformationGatherer">[docs]</a><span class="k">class</span> <span class="nc">SecondpassInformationGatherer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeVisitor</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    second pass visitor class</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fpig</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span> <span class="o">=</span> <span class="n">fpig</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">globals_used</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="bp">False</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">fpig</span><span class="o">.</span><span class="n">global_names</span><span class="p">}</span>
+
+<div class="viewcode-block" id="SecondpassInformationGatherer.visit_Name"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.SecondpassInformationGatherer.visit_Name">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="n">isname</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">)</span>
+        <span class="n">getid</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">id</span>
+        <span class="n">global_name_iter</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">getid</span><span class="p">,</span> <span class="nb">filter</span><span class="p">(</span><span class="n">isname</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span><span class="o">.</span><span class="n">global_names</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">getid</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="ow">in</span> <span class="n">global_name_iter</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Load</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">globals_used</span><span class="p">[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="SecondpassInformationGatherer.visit_Attribute"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.SecondpassInformationGatherer.visit_Attribute">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Attribute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+            <span class="n">isattribute</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Attribute</span><span class="p">)</span>
+            <span class="n">hasloadctx</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Load</span><span class="p">)</span>
+            <span class="n">filt</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">isattribute</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="ow">and</span> <span class="n">hasloadctx</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+            <span class="n">gettup</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">attr</span><span class="p">)</span>
+            <span class="n">tup_iter</span> <span class="o">=</span> <span class="nb">map</span><span class="p">(</span><span class="n">gettup</span><span class="p">,</span> <span class="nb">filter</span><span class="p">(</span><span class="n">filt</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span><span class="o">.</span><span class="n">global_names</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">gettup</span><span class="p">(</span><span class="n">node</span><span class="p">)</span> <span class="ow">in</span> <span class="n">tup_iter</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">globals_used</span><span class="p">[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="bp">True</span>
+</div>
+<div class="viewcode-block" id="SecondpassInformationGatherer.visit_Expr"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.SecondpassInformationGatherer.visit_Expr">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Str</span><span class="p">):</span>
+            <span class="k">for</span> <span class="n">global_name_node</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">fpig</span><span class="o">.</span><span class="n">global_names</span><span class="p">:</span>
+                <span class="c"># for cyth strings, we don&#39;t yet have a good parser, so use</span>
+                <span class="c">#  substring as a conservative estimate</span>
+                <span class="n">global_name</span> <span class="o">=</span> <span class="bp">None</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">global_name_node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+                    <span class="n">global_name</span> <span class="o">=</span> <span class="n">global_name_node</span><span class="o">.</span><span class="n">id</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">global_name_node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Attribute</span><span class="p">):</span>
+                    <span class="n">global_name</span> <span class="o">=</span> <span class="n">global_name_node</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span> <span class="o">+</span> <span class="s">&quot;.&quot;</span> <span class="o">+</span> <span class="n">global_name_node</span><span class="o">.</span><span class="n">attr</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">globals_used</span><span class="p">[</span><span class="n">global_name_node</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">globals_used</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">global_name_node</span><span class="p">,</span> <span class="bp">False</span><span class="p">)</span> <span class="ow">or</span>
+                                                        <span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">s</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">global_name</span><span class="p">)</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">))</span>
+
+</div></div>
+<div class="viewcode-block" id="CallRecorder"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CallRecorder">[docs]</a><span class="k">class</span> <span class="nc">CallRecorder</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeVisitor</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calls</span> <span class="o">=</span> <span class="p">[]</span>
+<div class="viewcode-block" id="CallRecorder.visit_Call"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.CallRecorder.visit_Call">[docs]</a>    <span class="k">def</span> <span class="nf">visit_Call</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">calls</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+</div></div>
+<div class="viewcode-block" id="get_funcalls_in_node"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.get_funcalls_in_node">[docs]</a><span class="k">def</span> <span class="nf">get_funcalls_in_node</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
+    <span class="n">cr</span> <span class="o">=</span> <span class="n">CallRecorder</span><span class="p">()</span>
+    <span class="n">cr</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cr</span><span class="o">.</span><span class="n">calls</span>
+
+</div>
+<div class="viewcode-block" id="infer_return_type"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_parser.infer_return_type">[docs]</a><span class="k">def</span> <span class="nf">infer_return_type</span><span class="p">(</span><span class="n">funcdef_node</span><span class="p">,</span> <span class="n">typedict</span><span class="p">):</span>
+    <span class="k">class</span> <span class="nc">ReturnTypeInferrer</span><span class="p">(</span><span class="n">ast</span><span class="o">.</span><span class="n">NodeVisitor</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">return_type</span> <span class="o">=</span> <span class="bp">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">assert</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">FunctionDef</span><span class="p">),</span> <span class="nb">type</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+            <span class="n">funcdef</span> <span class="o">=</span> <span class="n">node</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">visit</span><span class="p">(</span><span class="n">funcdef</span><span class="p">)</span>
+            <span class="c">#print(&#39;visited_returns: %r&#39; % self.visited_returns)</span>
+            <span class="k">if</span> <span class="n">utool</span><span class="o">.</span><span class="n">list_allsame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">return_type</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">def</span> <span class="nf">visit_Return</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">:</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Name</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">typedict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="o">.</span><span class="n">id</span><span class="p">,</span> <span class="bp">None</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">value</span><span class="p">,</span> <span class="n">ast</span><span class="o">.</span><span class="n">Tuple</span><span class="p">):</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">visited_returns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s">&quot;tuple&quot;</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">ReturnTypeInferrer</span><span class="p">(</span><span class="n">funcdef_node</span><span class="p">)</span><span class="o">.</span><span class="n">return_type</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Jon Crall.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
