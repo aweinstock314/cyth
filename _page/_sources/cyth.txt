@@ -1,0 +1,102 @@
+cyth package
+============
+
+Submodules
+----------
+
+cyth._grave module
+------------------
+
+.. automodule:: cyth._grave
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.bench module
+-----------------
+
+.. automodule:: cyth.bench
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_args module
+---------------------
+
+.. automodule:: cyth.cyth_args
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_benchmarks module
+---------------------------
+
+.. automodule:: cyth.cyth_benchmarks
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_decorators module
+---------------------------
+
+.. automodule:: cyth.cyth_decorators
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_helpers module
+------------------------
+
+.. automodule:: cyth.cyth_helpers
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_importer module
+-------------------------
+
+.. automodule:: cyth.cyth_importer
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_macros module
+-----------------------
+
+.. automodule:: cyth.cyth_macros
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_parser module
+-----------------------
+
+.. automodule:: cyth.cyth_parser
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.cyth_script module
+-----------------------
+
+.. automodule:: cyth.cyth_script
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+cyth.simple_test module
+-----------------------
+
+.. automodule:: cyth.simple_test
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: cyth
+    :members:
+    :undoc-members:
+    :show-inheritance:

@@ -1,0 +1,342 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>cyth.cyth_macros &mdash; cyth 1.0.0.dev1 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0.0.dev1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="top" title="cyth 1.0.0.dev1 documentation" href="../../index.html" />
+    <link rel="up" title="Module code" href="../index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" accesskey="U">Module code</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <h1>Source code for cyth.cyth_macros</h1><div class="highlight"><pre>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">python -c &quot;import cyth, doctest; print(doctest.testmod(cyth.cyth_macros))&quot;</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">__future__</span> <span class="kn">import</span> <span class="n">absolute_import</span><span class="p">,</span> <span class="n">division</span><span class="p">,</span> <span class="n">print_function</span>
+<span class="kn">import</span> <span class="nn">parse</span>
+<span class="kn">import</span> <span class="nn">re</span>
+<span class="kn">from</span> <span class="nn">functools</span> <span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span> <span class="nn">.cyth_decorators</span> <span class="kn">import</span> <span class="n">macro</span>
+
+
+<div class="viewcode-block" id="parens"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.parens">[docs]</a><span class="k">def</span> <span class="nf">parens</span><span class="p">(</span><span class="n">str_</span><span class="p">):</span>
+    <span class="k">return</span> <span class="s">&#39;(&#39;</span> <span class="o">+</span> <span class="n">str_</span> <span class="o">+</span> <span class="s">&#39;)&#39;</span>
+
+</div>
+<div class="viewcode-block" id="is_constant"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.is_constant">[docs]</a><span class="k">def</span> <span class="nf">is_constant</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">known_constants</span><span class="o">=</span><span class="p">[]):</span>
+    <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">r&#39;\d+&#39;</span><span class="p">,</span> <span class="n">expr</span><span class="p">)</span> <span class="ow">or</span> <span class="n">expr</span> <span class="ow">in</span> <span class="n">known_constants</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">True</span>
+    <span class="k">return</span> <span class="bp">False</span>
+
+</div>
+<div class="viewcode-block" id="get_slicerange"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.get_slicerange">[docs]</a><span class="k">def</span> <span class="nf">get_slicerange</span><span class="p">(</span><span class="n">slice_</span><span class="p">,</span> <span class="n">dim_name</span><span class="o">=</span><span class="s">&#39;dim0&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    slice_ = &#39;start:stop:stride&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">tup</span> <span class="o">=</span> <span class="n">slice_</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;:&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tup</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s">&#39;&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tup</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">is_constant</span><span class="p">(</span><span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]):</span>
+            <span class="n">slicerange</span> <span class="o">=</span> <span class="p">(</span><span class="s">&#39;1&#39;</span><span class="p">,)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span><span class="s">&#39;custom input&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">tup</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="s">&#39;0&#39;</span> <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&#39;</span> <span class="k">else</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="n">dim_name</span> <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&#39;</span> <span class="k">else</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">slicerange</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">tup</span><span class="p">)</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="s">&#39;0&#39;</span> <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&#39;</span> <span class="k">else</span> <span class="n">tup</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="n">dim_name</span> <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&#39;</span> <span class="k">else</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">stride</span> <span class="o">=</span> <span class="s">&#39;1&#39;</span> <span class="k">if</span> <span class="n">tup</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">==</span> <span class="s">&#39;&#39;</span> <span class="k">else</span> <span class="n">tup</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">slicerange</span> <span class="o">=</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">stop</span><span class="p">,</span> <span class="n">stride</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s">&#39;??&#39;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">slicerange</span>
+
+</div>
+<div class="viewcode-block" id="make_gensym_function"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.make_gensym_function">[docs]</a><span class="k">def</span> <span class="nf">make_gensym_function</span><span class="p">(</span><span class="n">suffix</span><span class="o">=</span><span class="s">&#39;gensym&#39;</span><span class="p">):</span>
+    <span class="n">gensym_dict</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">def</span> <span class="nf">gensym</span><span class="p">(</span><span class="n">prefix</span><span class="p">):</span>
+        <span class="n">number</span> <span class="o">=</span> <span class="n">gensym_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="n">gensym_dict</span><span class="p">[</span><span class="n">prefix</span><span class="p">]</span> <span class="o">=</span> <span class="n">number</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">return</span> <span class="s">&#39;</span><span class="si">%s</span><span class="s">__</span><span class="si">%s%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">prefix</span><span class="p">,</span> <span class="n">suffix</span><span class="p">,</span> <span class="n">number</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">gensym</span>
+
+</div>
+<span class="nd">@macro</span>
+<div class="viewcode-block" id="numpy_fancy_index_macro"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.numpy_fancy_index_macro">[docs]</a><span class="k">def</span> <span class="nf">numpy_fancy_index_macro</span><span class="p">(</span><span class="n">gensym</span><span class="p">,</span> <span class="n">lines</span><span class="p">):</span>
+    <span class="k">return</span> <span class="nb">map</span><span class="p">(</span><span class="n">partial</span><span class="p">(</span><span class="n">numpy_fancy_index_assign</span><span class="p">,</span> <span class="n">gensym</span><span class="p">),</span> <span class="n">lines</span><span class="p">)</span>
+
+</div>
+<div class="viewcode-block" id="numpy_fancy_index_assign"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.numpy_fancy_index_assign">[docs]</a><span class="k">def</span> <span class="nf">numpy_fancy_index_assign</span><span class="p">(</span><span class="n">gensym</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Input is gaurenteed to be one numpy array assigning to another.</span>
+<span class="sd">    Still in development. May break for complicated cases.</span>
+
+<span class="sd">    &gt;&gt;&gt; from cyth.cyth_macros import *</span>
+<span class="sd">    &gt;&gt;&gt; gensym = make_gensym_function()</span>
+<span class="sd">    &gt;&gt;&gt; line = &#39;_iv21s = invVR_mats[:, 1, :, 2:42, ::-1, , 3:, :]&#39;</span>
+<span class="sd">    &gt;&gt;&gt; line = &#39;_iv21s = invVR_mats[:, 1, :]&#39;</span>
+<span class="sd">    &gt;&gt;&gt; block1 = numpy_fancy_index_assign(gensym, &#39;_iv11s = invVR_mats[:, 0, 0]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block2 = numpy_fancy_index_assign(gensym, &#39;_iv12s = invVR_mats[:, :, 1]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block3 = numpy_fancy_index_assign(gensym, &#39;_iv21s = invVR_mats[:, 1, :]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block4 = numpy_fancy_index_assign(gensym, &#39;_iv22s = invVR_mats[:, 1, 1]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; print(&#39;\n&#39;.join((block1, block2, block3, block4)))</span>
+
+<span class="sd">    A shape is a tuple of array dimensions</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Split at assignment</span>
+    <span class="n">LHS</span><span class="p">,</span> <span class="n">RHS</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;=&#39;</span><span class="p">)</span>
+    <span class="c"># Parse out the fancy index slice</span>
+    <span class="n">_parseresult</span> <span class="o">=</span> <span class="n">parse</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s">&#39;{arr2}[{fancy_slice}]&#39;</span><span class="p">,</span> <span class="n">RHS</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+    <span class="n">_fancy_slice</span>   <span class="o">=</span> <span class="n">_parseresult</span><span class="o">.</span><span class="n">named</span><span class="p">[</span><span class="s">&#39;fancy_slice&#39;</span><span class="p">]</span>
+
+    <span class="n">arr1</span> <span class="o">=</span> <span class="n">LHS</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">arr2</span> <span class="o">=</span> <span class="n">_parseresult</span><span class="o">.</span><span class="n">named</span><span class="p">[</span><span class="s">&#39;arr2&#39;</span><span class="p">]</span>
+    <span class="c"># Break fancy slices into individual slices</span>
+    <span class="n">slice_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">_</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">_fancy_slice</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)]</span>
+
+    <span class="n">dim_ix_idx_fmt</span>     <span class="o">=</span> <span class="n">gensym</span><span class="p">(</span><span class="s">&#39;dim{ix}_idx&#39;</span><span class="p">)</span>
+    <span class="n">dim_ix_fmt</span>       <span class="o">=</span> <span class="n">gensym</span><span class="p">(</span><span class="s">&#39;dim{ix}&#39;</span><span class="p">)</span>
+    <span class="n">defdim_fmt</span>       <span class="o">=</span> <span class="s">&#39;cdef size_t {dim_ix_fmt} = {{arr2}}.shape[{{ix}}]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dim_ix_fmt</span><span class="o">=</span><span class="n">dim_ix_fmt</span><span class="p">)</span>
+    <span class="c">#alloc_ouput_fmt  = &#39;cdef np.ndarray {arr1} = np.ndarray(({LHS_shape}), {arr2}.dtype)&#39;</span>
+    <span class="n">alloc_ouput_fmt</span>  <span class="o">=</span> <span class="s">&#39;{arr1} = np.ndarray(({LHS_shape}), {arr2}.dtype)&#39;</span>
+    <span class="n">alloc_ouput_fmt</span>  <span class="o">=</span> <span class="s">&#39;{arr1} = np.ndarray(({LHS_shape}), {arr2}.dtype)&#39;</span>
+    <span class="n">for_fmt</span>          <span class="o">=</span> <span class="s">&#39;{indent}for {dim_x} in range({dimsize}):&#39;</span>
+    <span class="n">assign_index_fmt</span> <span class="o">=</span> <span class="s">&#39;{indent}{arr1}[{LHS_index}] = {arr2}[{RHS_index}]&#39;</span>
+
+    <span class="n">RHS_slicerange_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_slicerange</span><span class="p">(</span><span class="n">slice_</span><span class="p">,</span> <span class="n">dim_ix_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">))</span> <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">slice_</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">slice_list</span><span class="p">)]</span>
+    <span class="n">LHS_slicerange_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span> <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">RHS_slicerange_list</span> <span class="k">if</span>
+                           <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&#39;1&#39;</span><span class="p">]</span>
+
+    <span class="n">LHS_dimsize_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span>
+                        <span class="n">slicerange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39; - &#39;</span> <span class="o">+</span> <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">LHS_slicerange_list</span><span class="p">]</span>
+    <span class="n">RHS_dimsize_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span>
+                         <span class="n">slicerange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39; - &#39;</span> <span class="o">+</span> <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                         <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">RHS_slicerange_list</span> <span class="p">]</span>
+
+    <span class="c">#LHS_shape_list = [&#39;, &#39;.join(slicerange) for slicerange in LHS_slicerange_list]</span>
+
+    <span class="n">LHS_shape</span> <span class="o">=</span> <span class="n">parens</span><span class="p">(</span><span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">LHS_dimsize_list</span><span class="p">))</span>
+    <span class="c">#RHS_shape = parens(&#39;, &#39;.join(RHS_dimsize_list))</span>
+
+    <span class="n">indent</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+    <span class="n">for_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c"># indexes into the array shapes</span>
+    <span class="n">LHS_shapex_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">RHS_shapex_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c"># So hacky and special cased</span>
+    <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">dimsize</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">RHS_dimsize_list</span><span class="p">):</span>
+        <span class="n">rhs_slicerange</span> <span class="o">=</span> <span class="n">RHS_slicerange_list</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span>
+        <span class="n">dim_x</span> <span class="o">=</span> <span class="n">dim_ix_idx_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rhs_slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">RHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dimsize</span><span class="p">)</span>
+            <span class="c">#LHS_shapex_list.append(&#39;0&#39;)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">LHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dim_x</span><span class="p">)</span>
+            <span class="n">RHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dim_x</span><span class="p">)</span>
+            <span class="n">for_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">for_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="n">indent</span><span class="p">,</span> <span class="n">dim_x</span><span class="o">=</span><span class="n">dim_x</span><span class="p">,</span>
+                                           <span class="n">dimsize</span><span class="o">=</span><span class="n">dimsize</span><span class="p">))</span>
+            <span class="n">indent</span> <span class="o">+=</span> <span class="s">&#39;    &#39;</span>
+
+    <span class="n">RHS_defdim_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">defdim_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">)</span> <span class="k">for</span> <span class="n">ix</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">slice_list</span><span class="p">))]</span>
+
+    <span class="c"># Make index expression</span>
+    <span class="n">LHS_index</span> <span class="o">=</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">LHS_shapex_list</span><span class="p">)</span>
+    <span class="n">RHS_index</span> <span class="o">=</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">RHS_shapex_list</span><span class="p">)</span>
+
+    <span class="n">alloc_output_line</span> <span class="o">=</span> <span class="n">alloc_ouput_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">arr1</span><span class="o">=</span><span class="n">arr1</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">,</span> <span class="n">LHS_shape</span><span class="o">=</span><span class="n">LHS_shape</span><span class="p">)</span>
+    <span class="n">defdim_assign</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">RHS_defdim_list</span><span class="p">)</span>
+
+    <span class="n">for_lines</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">for_list</span><span class="p">)</span>
+
+    <span class="n">assign_index_line</span> <span class="o">=</span> <span class="n">assign_index_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">indent</span><span class="o">=</span><span class="n">indent</span><span class="p">,</span> <span class="n">arr1</span><span class="o">=</span><span class="n">arr1</span><span class="p">,</span> <span class="n">LHS_index</span><span class="o">=</span><span class="n">LHS_index</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">,</span> <span class="n">RHS_index</span><span class="o">=</span><span class="n">RHS_index</span><span class="p">)</span>
+
+    <span class="n">output_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">defdim_assign</span><span class="p">,</span> <span class="n">alloc_output_line</span><span class="p">,</span> <span class="n">for_lines</span><span class="p">,</span> <span class="n">assign_index_line</span><span class="p">]</span>
+    <span class="n">output_block</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_lines</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n\n</span><span class="s">&#39;</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">output_block</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output_block</span>
+
+</div>
+<div class="viewcode-block" id="numpy_fancy_index_assign1"><a class="viewcode-back" href="../../cyth.html#cyth.cyth_macros.numpy_fancy_index_assign1">[docs]</a><span class="k">def</span> <span class="nf">numpy_fancy_index_assign1</span><span class="p">(</span><span class="n">gensym</span><span class="p">,</span> <span class="n">line</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Input is gaurenteed to be one numpy array assigning to another.</span>
+<span class="sd">    Still in development. May break for complicated cases.</span>
+
+<span class="sd">    &gt;&gt;&gt; from cyth.cyth_macros import *</span>
+<span class="sd">    &gt;&gt;&gt; gensym = make_gensym_function()</span>
+<span class="sd">    &gt;&gt;&gt; line = &#39;_iv21s = invVR_mats[:, 1, :]&#39;</span>
+<span class="sd">    &gt;&gt;&gt; block1 = numpy_fancy_index_assign(gensym, &#39;_iv11s = invVR_mats[:, 0, 0]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block2 = numpy_fancy_index_assign(gensym, &#39;_iv12s = invVR_mats[:, :, 1]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block3 = numpy_fancy_index_assign(gensym, &#39;_iv21s = invVR_mats[:, 1, :]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; block4 = numpy_fancy_index_assign(gensym, &#39;_iv22s = invVR_mats[:, 1, 1]&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; print(&#39;\n&#39;.join((block1, block2, block3, block4)))</span>
+
+<span class="sd">    A shape is a tuple of array dimensions</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c"># Split at assignment</span>
+    <span class="n">LHS</span><span class="p">,</span> <span class="n">RHS</span> <span class="o">=</span> <span class="n">line</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;=&#39;</span><span class="p">)</span>
+    <span class="c"># Parse out the fancy index slice</span>
+    <span class="n">_parseresult</span> <span class="o">=</span> <span class="n">parse</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span><span class="s">&#39;{arr2}[{fancy_slice}]&#39;</span><span class="p">,</span> <span class="n">RHS</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+    <span class="n">_fancy_slice</span>   <span class="o">=</span> <span class="n">_parseresult</span><span class="o">.</span><span class="n">named</span><span class="p">[</span><span class="s">&#39;fancy_slice&#39;</span><span class="p">]</span>
+
+    <span class="n">arr1</span> <span class="o">=</span> <span class="n">LHS</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="n">arr2</span> <span class="o">=</span> <span class="n">_parseresult</span><span class="o">.</span><span class="n">named</span><span class="p">[</span><span class="s">&#39;arr2&#39;</span><span class="p">]</span>
+    <span class="c"># Break fancy slices into individual slices</span>
+    <span class="n">slice_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">_</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span> <span class="k">for</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">_fancy_slice</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)]</span>
+
+    <span class="n">dim_ix_idx_fmt</span>     <span class="o">=</span> <span class="n">gensym</span><span class="p">(</span><span class="s">&#39;dim{ix}_idx&#39;</span><span class="p">)</span>
+    <span class="n">dim_ix_fmt</span>       <span class="o">=</span> <span class="n">gensym</span><span class="p">(</span><span class="s">&#39;dim{ix}&#39;</span><span class="p">)</span>
+    <span class="n">defdim_fmt</span>       <span class="o">=</span> <span class="s">&#39;cdef Py_ssize_t {dim_ix_fmt} = {{arr2}}.shape[{{ix}}]&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">dim_ix_fmt</span><span class="o">=</span><span class="n">dim_ix_fmt</span><span class="p">)</span>
+    <span class="c">#alloc_ouput_fmt  = &#39;cdef np.ndarray {arr1} = np.ndarray(({LHS_shape}), {arr2}.dtype)&#39;</span>
+    <span class="n">alloc_ouput_fmt</span>  <span class="o">=</span> <span class="s">&#39;{arr1} = np.empty(({LHS_shape}))&#39;</span>
+    <span class="c">#, {arr2}.dtype</span>
+    <span class="n">for_fmt</span>          <span class="o">=</span> <span class="s">&#39;{indent}for {dim_x} in range({dimsize}):&#39;</span>
+    <span class="n">assign_index_fmt</span> <span class="o">=</span> <span class="s">&#39;{indent}{arr1}[{LHS_index}] = {arr2}[{RHS_index}]&#39;</span>
+
+    <span class="n">RHS_slicerange_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">get_slicerange</span><span class="p">(</span><span class="n">slice_</span><span class="p">,</span> <span class="n">dim_ix_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">))</span>
+                           <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">slice_</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">slice_list</span><span class="p">)]</span>
+    <span class="n">LHS_slicerange_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span> <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">RHS_slicerange_list</span> <span class="k">if</span>
+                           <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="s">&#39;1&#39;</span><span class="p">]</span>
+
+    <span class="n">LHS_dimsize_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span>
+                        <span class="n">slicerange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39; - &#39;</span> <span class="o">+</span> <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                        <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">LHS_slicerange_list</span><span class="p">]</span>
+    <span class="n">RHS_dimsize_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                         <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span>
+                         <span class="n">slicerange</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">+</span> <span class="s">&#39; - &#39;</span> <span class="o">+</span> <span class="n">slicerange</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                         <span class="k">for</span> <span class="n">slicerange</span> <span class="ow">in</span> <span class="n">RHS_slicerange_list</span> <span class="p">]</span>
+
+    <span class="c">#LHS_shape_list = [&#39;, &#39;.join(slicerange) for slicerange in LHS_slicerange_list]</span>
+
+    <span class="n">LHS_shape</span> <span class="o">=</span> <span class="n">parens</span><span class="p">(</span><span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">LHS_dimsize_list</span><span class="p">))</span>
+    <span class="c">#RHS_shape = parens(&#39;, &#39;.join(RHS_dimsize_list))</span>
+
+    <span class="n">indent</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+    <span class="n">for_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c"># indexes into the array shapes</span>
+    <span class="n">LHS_shapex_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">RHS_shapex_list</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="c"># So hacky and special cased</span>
+    <span class="k">for</span> <span class="n">ix</span><span class="p">,</span> <span class="n">dimsize</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">RHS_dimsize_list</span><span class="p">):</span>
+        <span class="n">rhs_slicerange</span> <span class="o">=</span> <span class="n">RHS_slicerange_list</span><span class="p">[</span><span class="n">ix</span><span class="p">]</span>
+        <span class="n">dim_x</span> <span class="o">=</span> <span class="n">dim_ix_idx_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">rhs_slicerange</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">RHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dimsize</span><span class="p">)</span>
+            <span class="c">#LHS_shapex_list.append(&#39;0&#39;)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">LHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dim_x</span><span class="p">)</span>
+            <span class="n">RHS_shapex_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">dim_x</span><span class="p">)</span>
+            <span class="n">for_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">for_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">indent</span><span class="o">=</span><span class="n">indent</span><span class="p">,</span> <span class="n">dim_x</span><span class="o">=</span><span class="n">dim_x</span><span class="p">,</span>
+                                           <span class="n">dimsize</span><span class="o">=</span><span class="n">dimsize</span><span class="p">))</span>
+            <span class="n">indent</span> <span class="o">+=</span> <span class="s">&#39;    &#39;</span>
+
+    <span class="n">RHS_defdim_list</span> <span class="o">=</span> <span class="p">[</span><span class="n">defdim_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ix</span><span class="o">=</span><span class="n">ix</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">)</span> <span class="k">for</span> <span class="n">ix</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">slice_list</span><span class="p">))]</span>
+
+    <span class="c"># Make index expression</span>
+    <span class="n">LHS_index</span> <span class="o">=</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">LHS_shapex_list</span><span class="p">)</span>
+    <span class="n">RHS_index</span> <span class="o">=</span> <span class="s">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">RHS_shapex_list</span><span class="p">)</span>
+
+    <span class="n">alloc_output_line</span> <span class="o">=</span> <span class="n">alloc_ouput_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">arr1</span><span class="o">=</span><span class="n">arr1</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">,</span> <span class="n">LHS_shape</span><span class="o">=</span><span class="n">LHS_shape</span><span class="p">)</span>
+    <span class="n">defdim_assign</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">RHS_defdim_list</span><span class="p">)</span>
+
+    <span class="n">for_lines</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">for_list</span><span class="p">)</span>
+
+    <span class="n">assign_index_line</span> <span class="o">=</span> <span class="n">assign_index_fmt</span><span class="o">.</span><span class="n">format</span><span class="p">(</span>
+        <span class="n">indent</span><span class="o">=</span><span class="n">indent</span><span class="p">,</span> <span class="n">arr1</span><span class="o">=</span><span class="n">arr1</span><span class="p">,</span> <span class="n">LHS_index</span><span class="o">=</span><span class="n">LHS_index</span><span class="p">,</span> <span class="n">arr2</span><span class="o">=</span><span class="n">arr2</span><span class="p">,</span> <span class="n">RHS_index</span><span class="o">=</span><span class="n">RHS_index</span><span class="p">)</span>
+
+    <span class="n">output_lines</span> <span class="o">=</span> <span class="p">[</span><span class="n">defdim_assign</span><span class="p">,</span> <span class="n">alloc_output_line</span><span class="p">,</span> <span class="n">for_lines</span><span class="p">,</span> <span class="n">assign_index_line</span><span class="p">]</span>
+    <span class="n">output_block</span> <span class="o">=</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">output_lines</span><span class="p">)</span> <span class="o">+</span> <span class="s">&#39;</span><span class="se">\n\n</span><span class="s">&#39;</span>
+    <span class="k">print</span><span class="p">(</span><span class="n">output_block</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">output_block</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="../../genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="../../py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li><a href="../../index.html">cyth 1.0.0.dev1 documentation</a> &raquo;</li>
+          <li><a href="../index.html" >Module code</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2014, Jon Crall.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2.3.
+    </div>
+  </body>
+</html>
