@@ -99,6 +99,20 @@ def translate(*paths):
         #    pass
 
 
+# TODO: append following formated text to end of cythonized files if it is not
+# already there in some form.
+'''
+#import cyth
+#if cyth.DYNAMIC:
+#    exec(cyth.import_cyth_execstr(__name__))
+#else:
+#    # <AUTOGEN_CYTH>
+#    # Regen command: python -c "import {full_modname}" --cyth-write
+#    pass
+#    # </AUTOGEN_CYTH>
+'''
+
+
 def translate_all():
     """ Translates a all python paths in directory """
     dpaths = utool.ls_moduledirs('.')
