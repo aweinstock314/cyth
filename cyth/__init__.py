@@ -2,17 +2,21 @@
 from __future__ import absolute_import, division, print_function
 import sys
 
+
+import utool as ut
+ut.noinject(__name__, '[cyth.__init__]')
+
 __version__ = '1.0.0.dev1'
 
-from .cyth_args import WITH_CYTH, CYTH_WRITE, DYNAMIC
-from .cyth_importer import import_cyth_execstr
-from .cyth_script import translate, translate_all
-from .cyth_decorators import macro
+from cyth.cyth_args import WITH_CYTH, CYTH_WRITE, DYNAMIC
+from cyth.cyth_importer import import_cyth_execstr
+from cyth.cyth_script import translate, translate_all
+from cyth.cyth_decorators import macro
 
-from . import cyth_helpers
-from . import cyth_importer
-from . import cyth_decorators
-from . import cyth_macros
+from cyth import cyth_helpers
+from cyth import cyth_importer
+from cyth import cyth_decorators
+from cyth import cyth_macros
 
 
 '''
