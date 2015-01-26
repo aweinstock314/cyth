@@ -180,7 +180,11 @@ def parse_doctest_examples(source):
 
 def get_benchline(src, funcname):
     """ Returns the  from a doctest source """
-    pt = ast.parse(src)
+    try:
+        pt = ast.parse(src)
+    except SyntaxError as e:
+        print("Syntax error \"%s\" in source fragment %r of function %r." % (e, src, funcname))
+        raise e
     assert isinstance(pt, ast.Module), type(pt)
     body = pt.body
     if len(body) != 1:
